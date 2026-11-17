@@ -1,0 +1,1316 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="css/bootstrap.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/request.css" />
+    <link rel="stylesheet" href="css/v52.css" />
+    <script src="js/theme.js"></script>
+    <script src="js/janela.js"></script>
+    <script src="js/preferencias.js"></script>
+</head>
+  <body class="v2 v3 v20">
+    <header class="app-header">
+      <div class="app-brand">
+        <img
+          src="icons/image-extensao.png"
+          alt="Ícone do Mapeador de Formulários"
+          class="app-icon"
+        />
+        <div>
+          <h3>Mapeador de Formulários</h3>
+          <div class="app-subtitle">Mapeie uma vez. Preencha quando precisar.</div>
+        </div>
+      </div>
+      <div class="app-header-actions">
+        <button
+          id="floatPopupBtn"
+          class="float-popup-btn"
+          type="button"
+          title="Painel flutuante na página (760 × 760, redimensionável). Permanece ativo até fechar no ×"
+          aria-label="Painel flutuante na página (760 × 760, redimensionável)"
+        >↗</button>
+        <button id="themeToggleV17" class="float-popup-btn theme-toggle-v17" type="button">◐</button>
+        <button
+          id="expandPopupBtn"
+          class="float-popup-btn"
+          type="button"
+          title="Janela separada (760 × 760, redimensionável). Dentro do painel flutuante: tela cheia / restaurar"
+          aria-label="Abrir em janela separada ou alternar tela cheia"
+        >⤢</button>
+        <button
+          id="minimizePopupBtn"
+          class="float-popup-btn floating-only-control"
+          type="button"
+          title="Ocultar painel"
+          aria-label="Ocultar painel"
+          hidden
+        >—</button>
+        <button
+          id="closeFloatingPopupBtn"
+          class="float-popup-btn floating-only-control"
+          type="button"
+          title="Fechar painel"
+          aria-label="Fechar painel"
+          hidden
+        >×</button>
+        <span class="badge-version">v54</span>
+      </div>
+    </header>
+
+    <nav class="tab-group v20-nav" aria-label="Navegação principal">
+      <button class="active" data-tab="tabProfiles" title="Início · Escolher e preencher"><svg class="v20-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg><span class="v20-tab-label">Início</span></button>
+      <button data-tab="tabMapper" title="Mapear · Ligar campos"><svg class="v20-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span class="v20-tab-label">Mapear</span></button>
+      <button data-tab="tabManager" title="Organizar · Pastas"><svg class="v20-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="v20-tab-label">Organizar</span></button>
+      <button data-tab="tabHistory" title="Dados · JSONs salvos"><svg class="v20-ico" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span class="v20-tab-label">Dados</span></button>
+      <button data-tab="tabRequest" title="Requisição HTTP manual"><svg class="v20-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></svg><span class="v20-tab-label">Requisição</span></button>
+      <button data-tab="tabAI" title="Gerar · Pessoas teste"><svg class="v20-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg><span class="v20-tab-label">Gerar</span></button>
+      <button data-tab="tabDado" title="Dado · Valores avulsos sobre um mapeamento"><svg class="v20-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16"/><path d="M17 10l3 2-3 2z"/></svg><span class="v20-tab-label">Dado</span></button>
+    </nav>
+
+    <!-- TAB 1: PERFIS -->
+    <div id="tabProfiles" class="tab-content active">
+      <div class="section-heading"><div><div class="section-title">Mapeamentos</div><div class="section-description">Escolha o mapeamento que deseja usar.</div></div></div>
+      <div class="mb-2">
+        <input
+          id="profileSearchInput"
+          type="search"
+          class="form-control form-control-sm"
+          placeholder="Buscar mapeamento…"
+        />
+      </div>
+      <div id="profileList" class="list-container">
+        <div class="empty-message">Nenhum mapeamento salvo</div>
+      </div>
+
+      <!-- Fluxo principal: escolha → dados → preencher -->
+      <div class="workflow-card">
+        <div class="workflow-steps">
+          <span class="workflow-step active"><b>1</b> Escolher</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-step"><b>2</b> Adicionar dados</span>
+          <span class="workflow-arrow">→</span>
+          <span class="workflow-step"><b>3</b> Preencher</span>
+        </div>
+
+        <div class="test-toggle-row">
+          <div>
+            <div class="test-toggle-title">🧪 Usar dados de teste</div>
+            <div class="test-toggle-help" id="testPreferenceState">Preferência salva por mapeamento</div>
+          </div>
+          <label class="toggle-switch" title="Ativar ou desativar dados de teste">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              value=""
+              id="is_test"
+              name="is_test"
+            />
+            <span class="toggle-slider"></span>
+            <span class="toggle-label off">OFF</span>
+            <span class="toggle-label on">ON</span>
+          </label>
+        </div>
+
+        <div class="primary-actions">
+          <button id="uploadNewJsonBtn" class="btn btn-secondary action-add-data" disabled>
+            ＋ Adicionar dados
+          </button>
+          <button id="fillProfileBtn" class="btn btn-primary action-fill" disabled>
+            ▶ Preencher formulário
+          </button>
+        </div>
+
+        <button id="newMappingBtn" class="btn btn-outline-primary action-new-mapping">
+          ＋ Criar novo mapeamento
+        </button>
+
+        <div class="dropdown-container">
+          <button id="moreOptionsBtn" class="btn btn-secondary more-button" aria-expanded="false">
+            Mais opções <span class="more-caret" aria-hidden="true">⌄</span>
+          </button>
+          <div id="moreOptionsMenu" class="dropdown-menu-custom more-menu" role="menu" aria-labelledby="moreOptionsBtn">
+            <div class="more-group">
+              <div class="more-group-title">Perfil selecionado</div>
+              <button id="editProfileBtn" class="dropdown-item " role="menuitem" disabled>✏️ Editar perfil</button>
+              <button id="editMappingBtn" class="dropdown-item " role="menuitem" disabled>🔗 Editar mapeamento</button>
+            </div>
+            <div class="more-group">
+              <div class="more-group-title">Dados JSON</div>
+              <button id="uploadJsonBtn" class="dropdown-item " role="menuitem">📤 Upload JSON</button>
+              <button id="quickJsonBtn" class="dropdown-item " role="menuitem">📝 JSON rápido / compacto</button>
+            </div>
+            <div class="more-group">
+              <div class="more-group-title">Backup (tudo em um arquivo)</div>
+              <button id="backupAllBtn" class="dropdown-item " role="menuitem">💾 Fazer backup</button>
+              <button id="restoreFullBackupBtn" class="dropdown-item " role="menuitem">♻️ Restaurar backup</button>
+            </div>
+            <div class="more-group">
+              <div class="more-group-title">Outros</div>
+              <button id="resetModalBtn" class="dropdown-item " role="menuitem">🔓 Reativar modal de teste</button>
+              <button id="deleteProfileBtn" class="dropdown-item text-danger" role="menuitem" disabled>🗑️ Excluir perfil</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+      id="profilePreview"
+      class="json-preview-box"
+      style="display: none"
+    ></div>
+      <div class="v20-tip"><strong>Fluxo:</strong> selecione um mapeamento → adicione um JSON → preencha o formulário. O JSON fica nos dados e não altera o mapeamento.</div>
+      <input type="file" id="restoreFullBackupFile" accept=".json,application/json" class="d-none" />
+      <input type="file" id="fileInput" accept=".json" class="d-none" />
+
+    </div>
+
+
+    <!-- TAB 2.5: GERENCIAR MAPEAMENTOS -->
+    <div id="tabManager" class="tab-content">
+      <div class="section-heading">
+        <div>
+          <div class="section-title">Organizar mapeamentos</div>
+          <div class="section-description">Crie pastas e subpastas e organize os mapeamentos arrastando-os.</div>
+        </div>
+      </div>
+      <div class="mapping-manager-toolbar">
+        <button id="newFolderBtn" class="btn btn-secondary">📁＋ Nova pasta</button>
+        <div class="mapping-manager-help">Mapeamentos também podem permanecer na raiz.</div>
+      </div>
+      <div id="mappingManagerTree" class="mapping-manager-tree"></div>
+    </div>
+
+    <!-- TAB 2: MAPEADOR -->
+    <div id="tabMapper" class="tab-content">
+      <div class="section-title">Mapear campos</div>
+
+      <div class="d-flex gap-1 align-items-center mb-2">
+        <label class="fw-semibold"
+          >JSON:</label
+        >
+        <select
+          id="mapperSelect"
+          class="form-select form-select-sm"
+        >
+          <option value="">Selecione um JSON...</option>
+        </select>
+        <button
+          id="extractBtn"
+          class="btn btn-teal btn-sm"
+        >
+          🔍 Extrair
+        </button>
+      </div>
+
+      <!-- Campo manual: o usuário informa o seletor CSS do elemento a preencher -->
+      <details id="manualFieldBox" class="manual-field-box">
+        <summary>➕ Adicionar campo manualmente (seletor CSS)</summary>
+        <div class="manual-field-body">
+          <div class="manual-field-row">
+            <select id="manualSelectorMode" class="form-control form-control-sm" aria-label="Modo do seletor"><option value="css">CSS</option><option value="js">JavaScript</option></select>
+            <input
+              id="manualSelectorInput"
+              type="text"
+              class="form-control form-control-sm"
+              placeholder='Ex.: #cpf  ·  input[name="email"]  ·  .form .telefone'
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="Seletor CSS do campo"
+            />
+            <button id="testSelectorBtn" type="button" class="btn btn-secondary btn-sm" title="Destacar o elemento na página">🎯 Testar</button>
+            <button id="addManualFieldBtn" type="button" class="btn btn-success btn-sm">Adicionar</button>
+          </div>
+          <div id="manualSelectorHint" class="manual-field-hint" role="status" aria-live="polite">
+            Informe um seletor CSS ou uma expressão document.querySelector("...") / document.querySelectorAll("...")[0], adicione e defina abaixo o valor (JSON, Form ou Default). Depois clique em Salvar Mapeamento.
+          </div>
+        </div>
+      </details>
+
+      <section class="discovery-panel-v16" aria-label="Descoberta de campos">
+ <div class="discovery-heading-v16"><strong>Descoberta de campos</strong><span>Qualquer formulário web acessível</span></div>
+ <div class="discovery-actions-v16"><button id="discoveryScanV16" type="button" class="btn btn-teal btn-sm">🔎 Analisar página</button><button id="discoveryPickV16" type="button" class="btn btn-secondary btn-sm">🎯 Selecionar visualmente</button></div>
+ <p id="discoveryStatusV16" role="status" aria-live="polite">Analise a página ou selecione um campo diretamente no site.</p>
+ <div id="discoveryResultsV16" class="discovery-results-v16"></div>
+</section>
+
+      <div id="mappingContainer" class="mapping-container">
+        <div class="empty-message">Selecione um JSON e clique em "Extrair"</div>
+      </div>
+
+      <div class="match-info" id="mappingStats">
+        <span>📊 Campos: 0</span>
+        <span>🔗 Mapeados: 0</span>
+      </div>
+
+      <div class="btn-group">
+        <button id="autoMapBtn" class="btn btn-secondary">
+          🤖 Auto Mapear
+        </button>
+        <button id="saveMappingBtn" class="btn btn-success">
+          💾 Salvar Mapeamento
+        </button>
+        <button id="clearMappingBtn" class="btn btn-danger">🗑️ Limpar</button>
+      </div>
+    </div>
+
+    <!-- TAB 3: HISTÓRICO -->
+    <div id="tabHistory" class="tab-content">
+      <div class="section-title">Dados</div>
+      <div class="data-safety-banner"><strong>🔒 Dados separados do mapeamento</strong><span>Adicionar, usar ou excluir um JSON não altera as regras do mapeamento.</span></div>
+      <div class="text-muted">
+        JSONs salvos por perfil. Cada JSON fica nos dados sem alterar o mapeamento.
+      </div>
+
+      <div class="mb-2">
+        <label class="fw-semibold"
+          >Filtrar por perfil:</label
+        >
+        <select
+          id="historyFilterSelect"
+          class="form-select form-select-sm"
+        >
+          <option value="">Todos os perfis</option>
+        </select>
+      </div>
+
+      <div
+        id="historyListContainer"
+        class="list-container"
+      >
+        <div class="empty-message">Nenhum histórico encontrado</div>
+      </div>
+
+      <div class="btn-group mt-2">
+        <button id="clearHistoryBtn" class="btn btn-danger">
+          🗑️ Limpar Histórico
+        </button>
+        <button id="refreshHistoryBtn" class="btn btn-secondary">
+          🔄 Atualizar
+        </button>
+      </div>
+    </div>
+    <div id="tabRequest" class="tab-content">
+      <div class="section-title">Requisição HTTP</div>
+      <div class="section-description req-lead">Envia direto da aba atual, usando a sessão do site. Os campos ficam fixos: só mudam quando você adiciona ou remove.</div>
+
+      <!-- Requisições salvas -->
+      <div class="req-card-row">
+        <label class="fw-semibold" for="reqSavedSelect">Requisição:</label>
+        <select id="reqSavedSelect" class="form-select form-select-sm" aria-label="Requisições salvas"><option value="">Rascunho atual</option></select>
+        <details class="req-menu">
+          <summary class="btn btn-secondary btn-sm" title="Mais opções">⋯</summary>
+          <div class="req-menu-list">
+            <button type="button" id="reqNew">Nova requisição</button>
+            <button type="button" id="reqDuplicate">Salvar como cópia</button>
+            <button type="button" id="reqRenameProfile">Renomear salva</button>
+            <button type="button" id="reqDeleteProfile" class="is-danger">Excluir salva</button>
+            <button type="button" id="reqCopyCurl">Copiar como cURL</button>
+          </div>
+        </details>
+      </div>
+
+      <!-- Método + URL + Enviar -->
+      <div class="req-card-row req-line">
+        <select id="reqMethod" class="form-select form-select-sm" aria-label="Método"><option>POST</option><option>GET</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select>
+        <input id="reqUrl" class="form-control form-control-sm" placeholder="https://site.com/api/endpoint" aria-label="URL de destino" spellcheck="false" />
+        <button type="button" id="reqSend" class="btn btn-teal btn-sm" title="Enviar (Ctrl+Enter)">📤 Enviar</button>
+      </div>
+      <div id="reqNotice" class="req-notice" role="status" aria-live="polite" hidden></div>
+      <div id="reqIssues" class="req-issues" hidden></div>
+
+      <!-- Valores dos campos: só preenchem os campos que já existem -->
+      <section class="req-panel-card" aria-label="Valores dos campos">
+        <div class="req-panel-heading"><strong>Valores dos campos</strong><span>Preenchem só os campos que já estão na requisição</span></div>
+        <div class="req-source req-panel-actions req-panel-actions-4" role="group" aria-label="Origem dos valores">
+          <button type="button" class="btn btn-secondary btn-sm req-act" data-source="profile" title="Valores do JSON do mapeamento selecionado em Início">👤 Perfil</button>
+          <button type="button" class="btn btn-secondary btn-sm req-act" data-source="page" title="Lê todos os valores digitados no formulário da página e preenche os campos que existem aqui">🌐 Página</button>
+          <button type="button" class="btn btn-secondary btn-sm req-act" data-source="remembered" title="Escolher uma pessoa gerada em Gerar (4Devs)">🧠 Lembrados</button>
+          <button type="button" class="btn btn-secondary btn-sm req-act" id="reqTestBtn" title="Escolher quais chaves do JSON recebem o prefixo TESTE">🧪 Modo teste</button>
+        </div>
+        <p class="req-panel-status" role="status" aria-live="polite"><strong id="reqActiveMapping">Nenhum</strong><small id="reqActiveHint">Escolha um mapeamento em Início para usar seus valores.</small></p>
+        <div id="reqExtra" class="req-extra" hidden><span id="reqExtraText"></span><button type="button" id="reqExtraAdd" class="btn btn-secondary btn-sm">＋ Adicionar à requisição</button></div>
+        <div hidden>
+          <input type="radio" name="reqSource" value="profile" checked /><input type="radio" name="reqSource" value="page" /><input type="radio" name="reqSource" value="remembered" /><input type="checkbox" id="reqUseTest" />
+          <select id="reqRemembered" aria-label="Pessoa lembrada"></select>
+        </div>
+        <div id="reqPeopleModal" class="req-modal" hidden role="dialog" aria-modal="true" aria-labelledby="reqPeopleTitle">
+          <div class="req-modal-box">
+            <div class="req-modal-head"><h4 id="reqPeopleTitle">📋 Pessoas Geradas</h4><button type="button" class="req-modal-x" id="reqPeopleClose" aria-label="Fechar">×</button></div>
+            <div class="req-people-tools">
+              <input id="reqPeopleFilter" class="form-control" placeholder="Buscar por nome, CPF ou e-mail" />
+              <label class="req-check"><input type="checkbox" id="reqPeopleShowUsed" checked /> Exibir usados</label>
+            </div>
+            <div id="reqPeopleList" class="req-people-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="req-subtabs" role="tablist">
+        <button type="button" class="req-subtab active" data-req-panel="body">Campos <span id="reqFieldCount" class="req-badge">0</span></button>
+        <button type="button" class="req-subtab" data-req-panel="headers">Headers <span id="reqHeaderCount" class="req-badge">0</span></button>
+        <button type="button" class="req-subtab" data-req-panel="params">Params</button>
+        <button type="button" class="req-subtab" data-req-panel="auth">Auth</button>
+        <button type="button" class="req-subtab" data-req-panel="validate">Validação <span id="reqAssertCount" class="req-badge">0</span></button>
+        <button type="button" class="req-subtab" data-req-panel="options">Opções</button>
+        <button type="button" class="req-subtab" data-req-panel="history">Histórico</button>
+        <button type="button" class="req-subtab" data-req-panel="report">Relatório</button>
+      </div>
+
+      <!-- CAMPOS -->
+      <div class="req-panel" data-req-content="body">
+        <div class="req-tools">
+          <button type="button" id="reqAddFields" class="btn btn-teal btn-sm" title="Escolher campos do mapeamento, do JSON de dados ou da página">＋ Adicionar campos</button>
+          <button type="button" id="reqCapture" class="btn btn-secondary btn-sm" title="Cria os campos a partir do formulário da página (substitui a lista atual)">⚡ Montar da página</button>
+          <button type="button" id="reqImportJson" class="btn btn-secondary btn-sm">📥 Colar JSON</button>
+          <button type="button" id="reqToggleRaw" class="btn btn-secondary btn-sm">Ver como JSON</button>
+        </div>
+        <div id="reqFieldEditor">
+          <input id="reqFieldFilter" class="form-control req-filter" placeholder="Filtrar campos…" aria-label="Filtrar campos" autocomplete="off" hidden />
+          <div class="req-list">
+            <div class="req-list-head" aria-hidden="true"><span></span><span>Nome</span><span>Tipo</span><span>Valor</span><span title="Obrigatório">*</span><span></span></div>
+            <div id="reqFieldRows"></div>
+            <p id="reqEmpty" class="req-empty empty-message">Nenhum campo ainda. Use <strong>＋ Adicionar campos</strong> (mapeamento, JSON ou página) ou <strong>⚡ Montar da página</strong>.</p>
+          </div>
+          <button type="button" id="reqAddRow" class="btn btn-outline-primary btn-sm req-add">＋ Linha em branco</button>
+        </div>
+        <div id="reqRawEditor" hidden>
+          <textarea id="reqData" class="form-control" rows="10" spellcheck="false" aria-label="Campos em JSON">{}</textarea>
+        </div>
+        <div class="match-info" id="reqStats">
+          <span>📊 Campos: <b id="reqStatTotal">0</b></span>
+          <span>✅ Ativos: <b id="reqStatOn">0</b></span>
+          <span>🔗 Mapeados: <b id="reqStatMapped">0</b></span>
+          <span>⭐ Obrigatórios: <b id="reqStatReq">0</b></span>
+        </div>
+      </div>
+
+      <!-- HEADERS -->
+      <div class="req-panel req-card" data-req-content="headers" hidden>
+        <div class="req-kv-head">
+          <strong>Headers da requisição</strong>
+          <select id="reqHeaderPreset" class="form-select form-select-sm" aria-label="Adicionar header comum"><option value="">＋ Header comum…</option></select>
+        </div>
+        <div id="reqHeaderRows" class="req-kv"></div>
+        <button type="button" id="reqHeaderAdd" class="btn btn-outline-primary btn-sm req-add">＋ Adicionar header</button>
+        <details class="req-json-details"><summary>Editar como JSON</summary>
+          <textarea id="reqHeaders" class="form-control" rows="4" spellcheck="false" aria-label="Headers em JSON">{"Accept":"application/json","X-Requested-With":"XMLHttpRequest"}</textarea>
+        </details>
+      </div>
+
+      <!-- AUTH -->
+      <div class="req-panel req-card" data-req-content="auth" hidden>
+        <label>Token CSRF <select id="reqTokenMode" class="form-control"><option value="auto">Automático (formulário ou meta)</option><option value="manual">Manual</option><option value="none">Sem token</option></select></label>
+        <label>Token manual <input id="reqToken" class="form-control" placeholder="Opcional" autocomplete="off" /></label>
+        <div class="req-grid-2">
+          <label>Campo do token <input id="reqTokenField" class="form-control" value="_token" /></label>
+          <label>Header do token <input id="reqTokenHeader" class="form-control" value="X-CSRF-TOKEN" /></label>
+        </div>
+        <label>Bearer token <input id="reqBearer" class="form-control" placeholder="Opcional — envia Authorization: Bearer …" autocomplete="off" spellcheck="false" /></label>
+      </div>
+
+      <!-- VALIDAÇÃO -->
+      <div class="req-panel req-card" data-req-content="validate" hidden>
+        <p class="text-muted req-hint">Defina o que deve ser verdade na resposta. As verificações rodam depois de cada envio, aparecem em <strong>Resposta › Validação</strong> e definem o resultado no <strong>Relatório</strong>.</p>
+        <div class="req-kv-head">
+          <select id="reqAssertPreset" class="form-select form-select-sm" aria-label="Verificação rápida"><option value="">⚡ Verificação rápida…</option></select>
+          <button type="button" id="reqAssertAdd" class="btn btn-outline-primary btn-sm">＋ Nova verificação</button>
+        </div>
+        <div id="reqAssertRows" class="req-kv"></div>
+        <p id="reqAssertEmpty" class="req-empty empty-message">Nenhuma verificação. Escolha uma verificação rápida ou crie a sua — por exemplo, <em>Status é igual a 422</em> e <em>Campo errors.cpf existe</em>.</p>
+        <label class="req-check"><input type="checkbox" id="reqAutoVerdict" checked /> Marcar o teste como Aprovado/Reprovado no relatório automaticamente</label><label class="req-check"><input type="checkbox" id="reqExpectedFailure" /> Falha HTTP é esperada neste caso (considerar aprovado quando falhar)</label>
+      </div>
+
+      <!-- OPÇÕES -->
+      <div class="req-panel req-card" data-req-content="options" hidden>
+        <label>Formato do corpo <select id="reqFormat" class="form-control"><option value="form">FormData (multipart/form-data)</option><option value="json">JSON (application/json)</option><option value="urlencoded">URL encoded</option></select></label>
+        <label>Formulário da página <input id="reqSelector" class="form-control" value="form" placeholder="form, #cadastro" /></label>
+        <label class="req-check"><input type="checkbox" id="reqIncludeForm" checked /> Incluir também os demais campos do formulário</label>
+        <label class="req-check"><input type="checkbox" id="reqCredentials" checked /> Enviar cookies da sessão</label>
+        <label class="req-check"><input type="checkbox" id="reqConfirm" checked /> Pedir confirmação antes de enviar</label>
+      </div>
+
+      <!-- HISTÓRICO -->
+      <div class="req-panel req-card" data-req-content="history" hidden>
+        <div class="req-toolbar"><button type="button" id="reqClearHistory" class="btn btn-secondary">Limpar histórico</button></div>
+        <div id="reqHistoryList"></div>
+      </div>
+
+      <!-- RELATÓRIO -->
+      <div class="req-panel req-card" data-req-content="report" hidden>
+        <p class="text-muted">Registra requisições e respostas para análise. Selecione quais testes serão exportados; dados sensíveis identificados são ocultados.</p>
+        <div class="req-grid-2">
+          <label>Ciclo de testes <input id="reportSuite" class="form-control" placeholder="Ex.: Homologação — cadastro" /></label>
+          <label>Responsável <input id="reportTester" class="form-control" placeholder="Opcional" /></label>
+        </div>
+        <div class="req-toolbar"><button id="reportExportHtml" type="button" class="btn btn-primary">Exportar HTML</button><button id="reportExportCsv" type="button" class="btn btn-secondary">CSV</button><button id="reportExportJson" type="button" class="btn btn-secondary">JSON</button><button id="reportClear" type="button" class="btn btn-secondary">Limpar</button></div>
+        <div id="reportStats" class="req-report-stats"></div>
+        <div class="req-report-selection"><strong>Testes incluídos</strong><div class="req-report-selection-actions"><button type="button" class="btn btn-secondary" id="reportSelectAll">Todos</button><button type="button" class="btn btn-secondary" id="reportSelectNone">Nenhum</button></div><span id="reportSelectedCount" aria-live="polite"></span></div>
+        <div id="reportEntries"></div>
+      </div>
+
+      <div class="btn-group req-bottom">
+        <button type="button" id="reqApplyMapping" class="btn btn-secondary" title="Preenche de novo os valores com a origem escolhida (não cria campos)">🔄 Reaplicar valores</button>
+        <button type="button" id="reqSaveProfile" class="btn btn-success" title="Salvar requisição">💾 Salvar requisição</button>
+        <button type="button" id="reqClear" class="btn btn-danger" title="Começar uma nova requisição">🗑️ Limpar</button>
+      </div>
+
+      <!-- Ferramentas avançadas de validação/API: recolhidas por padrão -->
+      <details class="req-advanced-disclosure" id="reqAdvancedDisclosure">
+        <summary>
+          <span class="req-advanced-disclosure-title">🧰 Testes avançados <small>Opcional · lote, casos negativos, ambientes e análise de resposta</small></span>
+          <span class="req-advanced-disclosure-hint">Expandir / recolher</span>
+        </summary>
+        <section class="req-panel-card req-advanced" id="reqAdvanced">
+        <div class="req-advanced-grid">
+          <div class="req-advanced-card">
+            <h4>1. Execução em lote</h4>
+            <label>Dados (JSON ou CSV; CSV usa a primeira linha como cabeçalho)</label>
+            <textarea id="reqBatchInput" rows="5" class="form-control" placeholder='[{"cpf":"..."},{"cpf":"..."}] ou cpf,nome&#10;123,Ana'></textarea>
+            <div class="req-advanced-row"><label>Limite máximo (req/s) <input id="reqBatchRate" type="number" min="0.01" max="100" step="0.1" value="1" class="form-control"></label><label>Origem <select id="reqBatchSource" class="form-control"><option value="paste">JSON/CSV colado</option><option value="remembered">Pessoas lembradas</option></select></label></div>
+            <div class="req-advanced-actions"><button type="button" id="reqBatchRun" class="btn btn-primary btn-sm">▶ Rodar lote</button><button type="button" id="reqBatchStop" class="btn btn-danger btn-sm" disabled>■ Parar</button><button type="button" id="reqBatchExport" class="btn btn-secondary btn-sm">Exportar CSV</button></div>
+            <div id="reqBatchSummary" class="req-advanced-summary" aria-live="polite"></div><div class="req-advanced-table-wrap"><table class="req-advanced-table"><thead><tr><th>#</th><th>Dados</th><th>Status</th><th>Tempo</th><th>Verificações</th></tr></thead><tbody id="reqBatchRows"></tbody></table></div>
+          </div>
+          <div class="req-advanced-card">
+            <h4>2. Gerador de casos negativos</h4>
+            <p>Selecione os campos existentes. Os campos da requisição não são criados nem removidos.</p>
+            <div id="reqNegativeFields" class="req-negative-fields"></div>
+            <div class="req-advanced-row"><label>Esperado HTTP <input id="reqNegativeStatus" class="form-control" value="422"></label><label>Caminho de erro JSON <input id="reqNegativePath" class="form-control" placeholder="errors.cpf"></label></div><div class="req-advanced-row"><label>Limite mínimo <input id="reqNegativeMin" type="number" class="form-control" value="0"></label><label>Limite máximo <input id="reqNegativeMax" type="number" class="form-control" value="2147483647"></label></div>
+            <div class="req-advanced-actions"><button type="button" id="reqNegativeRun" class="btn btn-primary btn-sm">▶ Gerar e executar</button></div><div id="reqNegativeSummary" class="req-advanced-summary"></div>
+          </div>
+          <div class="req-advanced-card">
+            <h4>3. Ambientes e variáveis</h4>
+            <label>Ambiente <select id="reqEnvSelect" class="form-control"><option value="Padrão">Padrão</option></select></label><label>Nome do ambiente <input id="reqEnvName" class="form-control" value="Padrão"></label>
+            <label>Variáveis em JSON <textarea id="reqEnvJson" class="form-control" rows="4" placeholder='{"base_url":"https://api.exemplo.com","token":"..."}'></textarea></label>
+            <div class="req-advanced-actions"><button type="button" id="reqEnvSave" class="btn btn-secondary btn-sm">Salvar ambiente</button><button type="button" id="reqEnvApply" class="btn btn-primary btn-sm">Ativar ambiente</button><button type="button" id="reqEnvDelete" class="btn btn-secondary btn-sm">Excluir ambiente</button></div>
+            <label>Extrair da última resposta <input id="reqExtractPath" class="form-control" placeholder="data.token"></label><label>Nome da variável <input id="reqExtractName" class="form-control" placeholder="access_token"></label><button type="button" id="reqExtractSave" class="btn btn-secondary btn-sm">Extrair e salvar</button>
+          </div>
+          <div class="req-panel req-advanced-card" data-req-content="params" hidden>
+            <h4>Params da URL</h4><p>Edite os parâmetros e sincronize-os com a query string do destino.</p>
+            <div id="reqParamsRows"></div><div class="req-advanced-actions"><button type="button" id="reqParamsAdd" class="btn btn-secondary btn-sm">＋ Parâmetro</button><button type="button" id="reqParamsSync" class="btn btn-primary btn-sm">Sincronizar URL</button></div>
+          </div>
+          <div class="req-advanced-card">
+            <h4>5. Análise da resposta</h4>
+            <label>Buscar no JSON <input id="reqResponseSearch" class="form-control" placeholder="chave ou valor"></label><div id="reqJsonTree" class="req-json-tree"></div>
+            <label>JSON Schema <textarea id="reqSchemaInput" class="form-control" rows="4" placeholder='{"type":"object","required":["id"]}'></textarea></label><button type="button" id="reqSchemaRun" class="btn btn-secondary btn-sm">Validar Schema</button><div id="reqSchemaResult" class="req-advanced-summary"></div>
+            <div class="req-advanced-actions"><button type="button" id="reqComparePrevious" class="btn btn-secondary btn-sm">Comparar com resposta anterior</button><button type="button" id="reqShowHtml" class="btn btn-secondary btn-sm">Visualizar HTML isolado</button></div><div id="reqCompareResult" class="req-advanced-summary"></div><iframe id="reqHtmlPreview" title="Prévia HTML isolada" sandbox="" hidden></iframe>
+          </div>
+          <div class="req-advanced-card">
+            <h4>6. Importar / exportar</h4><label>cURL ou coleção Postman v2.1 <textarea id="reqImportText" class="form-control" rows="4" placeholder="Cole um comando cURL ou JSON de coleção Postman"></textarea></label><div class="req-advanced-actions"><button type="button" id="reqImportCurl" class="btn btn-secondary btn-sm">Importar cURL</button><button type="button" id="reqImportPostman" class="btn btn-secondary btn-sm">Importar Postman</button><button type="button" id="reqExportAll" class="btn btn-primary btn-sm">Exportar dados avançados</button><button type="button" id="reqImportAll" class="btn btn-secondary btn-sm">Importar backup</button></div><input id="reqImportFile" type="file" accept="application/json,.json" hidden>
+          </div>
+          <div class="req-advanced-card">
+            <h4>7. Autenticação e envio</h4>
+            <label>Autenticação <select id="reqAdvancedAuth" class="form-control"><option value="none">Sem autenticação adicional</option><option value="basic">Basic</option><option value="apikey">API key</option></select></label>
+            <label>Usuário / nome da chave <input id="reqAdvancedAuthName" class="form-control"></label><label>Senha / valor da chave <input id="reqAdvancedAuthValue" type="password" class="form-control" autocomplete="off"></label><label>Local da API key <select id="reqAdvancedAuthPlace" class="form-control"><option value="header">Header</option><option value="query">Query string</option></select></label>
+            <label>Timeout (ms) <input id="reqAdvancedTimeout" type="number" min="100" max="120000" value="30000" class="form-control"></label><button type="button" id="reqCancelCurrent" class="btn btn-danger btn-sm">Cancelar requisição atual</button><label>Repetições em erro <input id="reqAdvancedRetries" type="number" min="0" max="5" value="0" class="form-control"></label><label>Campo para arquivo <select id="reqFileField" class="form-control"></select></label><label>Arquivo multipart <input id="reqFileInput" type="file" class="form-control"></label><button type="button" id="reqFileClear" class="btn btn-secondary btn-sm">Remover arquivo selecionado</button>
+            <p class="req-advanced-note">Ambientes, limite, timeout e repetição são salvos localmente. Senhas/API keys e variáveis com nomes sensíveis não são persistidas; informe-as novamente ao abrir o popup. Backups mascaram segredos reconhecidos. Os avisos de validação continuam não bloqueantes.</p>
+          </div>
+          <div class="req-advanced-card">
+            <h4>8. Organização e modelos</h4><label>Pasta da requisição salva <input id="reqFolderName" class="form-control" placeholder="Ex.: Cadastro / Homologação"></label><div class="req-advanced-actions"><button type="button" id="reqFolderAssign" class="btn btn-secondary btn-sm">Atribuir pasta</button><button type="button" id="reqTemplateSave" class="btn btn-secondary btn-sm">Salvar modelo de verificações</button><select id="reqTemplateSelect" class="form-control"><option value="">Aplicar modelo…</option></select></div><h4>9. Relatório Markdown</h4><label>Severidade padrão <select id="reqReportSeverity" class="form-control"><option>Alta</option><option selected>Média</option><option>Baixa</option><option>Informativa</option></select></label><button type="button" id="reqReportMarkdown" class="btn btn-secondary btn-sm">Exportar relatório Markdown</button>
+          </div>
+        </div>
+        </section>
+      </details>
+
+      <!-- RESPOSTA -->
+      <section class="req-panel-card req-response" id="reqResponse">
+        <div class="req-panel-heading">
+          <strong>Resposta</strong>
+          <span class="req-response-actions">
+            <button type="button" id="reqPreview" class="btn btn-secondary btn-sm" title="Mostra o que seria enviado, com variáveis resolvidas e token oculto">👁 Pré-visualizar</button>
+            <button type="button" id="reqCopyResponse" class="btn btn-secondary btn-sm">📋 Copiar</button>
+            <button type="button" id="reqDownloadResponse" class="btn btn-secondary btn-sm">⬇ Baixar</button>
+          </span>
+        </div>
+        <div class="req-meta" id="reqMeta" aria-live="polite">
+          <span id="reqStatus" class="req-status"></span>
+          <span id="reqTime" class="req-chip" hidden></span>
+          <span id="reqSize" class="req-chip" hidden></span>
+          <span id="reqVerdict" class="req-chip" hidden></span>
+        </div>
+        <div class="req-subtabs req-resp-tabs" role="tablist">
+          <button type="button" class="req-subtab active" data-resp-panel="body">Corpo</button>
+          <button type="button" class="req-subtab" data-resp-panel="headers">Headers <span id="reqRespHeaderCount" class="req-badge">0</span></button>
+          <button type="button" class="req-subtab" data-resp-panel="sent">Enviado</button>
+          <button type="button" class="req-subtab" data-resp-panel="tests">Validação <span id="reqRespTestCount" class="req-badge">0</span></button>
+        </div>
+        <div data-resp-content="body">
+          <div class="req-resp-tools">
+            <div class="req-seg" role="group" aria-label="Modo de exibição">
+              <button type="button" id="reqViewPretty" class="active">Formatado</button>
+              <button type="button" id="reqViewRaw">Bruto</button>
+            </div>
+            <label class="req-check"><input type="checkbox" id="reqWrap" checked /> Quebrar linhas</label>
+          </div>
+          <pre id="reqOutput" class="req-output" aria-live="polite">Envie a requisição para ver a resposta aqui.</pre>
+        </div>
+        <div data-resp-content="headers" hidden><div id="reqRespHeaders" class="req-resp-table"></div></div>
+        <div data-resp-content="sent" hidden><pre id="reqSentOut" class="req-output">Nada enviado ainda. Use “Pré-visualizar” para ver o que seria enviado.</pre></div>
+        <div data-resp-content="tests" hidden><div id="reqTestResults" class="req-resp-table"></div></div>
+      </section>
+    </div>
+    <!-- TAB DADO (v30) -->
+    <div id="tabDado" class="tab-content">
+      <div class="section-title">Dado</div>
+      <div class="text-muted mb-2">Use um mapeamento com outros valores. Só os campos que você adicionar abaixo são trocados; todos os outros usam o valor do mapeamento. Nada é alterado no mapeamento.</div>
+      <div class="d-flex gap-1 align-items-center mb-2">
+        <label class="fw-semibold">Mapeamento:</label>
+        <select id="dadoProfile" class="form-select form-select-sm"></select>
+        <button id="dadoExtractBtn" class="btn btn-teal btn-sm">🔍 Extrair</button>
+      </div>
+      <div class="manual-field-box dado-saved-box" style="padding:8px;margin-bottom:8px">
+        <div class="fw-semibold mb-1">💾 Dados salvos</div>
+        <div class="d-flex gap-1 align-items-center mb-1">
+          <input id="dadoSaveTitle" type="text" class="form-control form-control-sm" placeholder="Título do dado (ex.: Cliente Maria)" maxlength="80" autocomplete="off" />
+          <button id="dadoSaveBtn" type="button" class="btn btn-success btn-sm">💾 Salvar</button>
+        </div>
+        <div class="d-flex gap-1 align-items-center">
+          <select id="dadoSavedSelect" class="form-select form-select-sm">
+            <option value="">Selecione um dado salvo...</option>
+          </select>
+          <button id="dadoSavedLoad" type="button" class="btn btn-primary btn-sm">Usar</button>
+          <button id="dadoSavedDelete" type="button" class="btn btn-danger btn-sm" title="Excluir dado salvo">🗑️</button>
+        </div>
+      </div>
+      <details class="manual-field-box">
+        <summary>📋 JSON do dado (opcional)</summary>
+        <div class="manual-field-body">
+          <textarea id="dadoJsonText" class="form-control" rows="6" spellcheck="false" placeholder='{"nome": "Maria", "valor": "100"}'></textarea>
+          <button id="dadoJsonApply" type="button" class="btn btn-success btn-sm mt-1">Carregar JSON</button>
+          <div class="manual-field-hint">As chaves ficam disponíveis no modo JSON de cada campo e como <code>{{chave}}</code> em qualquer valor.</div>
+        </div>
+      </details>
+      <details class="manual-field-box">
+        <summary>➕ Adicionar campo manualmente (seletor)</summary>
+        <div class="manual-field-body"><div class="manual-field-row">
+          <select id="dadoManualMode" class="form-control form-control-sm"><option value="css">CSS</option><option value="js">JavaScript</option></select>
+          <input id="dadoManualInput" type="text" class="form-control form-control-sm" placeholder='Ex.: #cpf' autocomplete="off" spellcheck="false" />
+          <button id="dadoAddManual" type="button" class="btn btn-success btn-sm">Adicionar</button>
+        </div></div>
+      </details>
+      <div class="d-flex gap-1 align-items-center mb-2">
+        <select id="dadoAddSelect" class="form-select form-select-sm"></select>
+        <button id="dadoAddBtn" type="button" class="btn btn-success btn-sm">+ Adicionar</button>
+      </div>
+      <div id="dadoContainer" class="mapping-container"></div>
+      <div class="match-info" id="dadoStats"></div>
+      <div class="btn-group">
+        <button id="dadoRun" class="btn btn-primary">📤 Preencher</button>
+        <button id="dadoClear" class="btn btn-danger">🗑️ Limpar dado</button>
+      </div>
+    </div>
+
+    <!-- TAB 4: AUTOMAÇÃO 4DEVS - APENAS UMA VEZ -->
+    <div id="tabAI" class="tab-content">
+      <div class="section-title">Gerar dados</div>
+
+      <div class="text-muted">
+        🔄 Abre o 4Devs, gera uma pessoa automaticamente e cria um perfil na
+        extensão.
+      </div>
+
+      <!-- Botão principal -->
+      <button
+        id="gerar4devsBtn"
+        class="btn btn-purple"
+      >
+        ✨ Gerar Pessoa 4Devs
+      </button>
+
+      <!-- Status -->
+      <div
+        id="aiStatus"
+      >
+        ⚡ Clique no botão para gerar uma pessoa automaticamente
+      </div>
+
+      <!-- Configurações da automação -->
+      <div
+        id="configuracaoIA"
+      >
+        <h3>⚙️ Opções da Automação</h3>
+
+        <div class="form-group">
+          <label
+            >Sexo:</label
+          >
+          <select
+            id="sexo4devs"
+          >
+            <option value="I">Aleatório</option>
+            <option value="M">Feminino</option>
+            <option value="H">Masculino</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label
+            >Idade (0 = qualquer):</label
+          >
+          <select
+            id="idade4devs"
+          >
+            <option value="0">Qualquer</option>
+            <option value="18">18</option>
+            <option value="19">19</option>
+            <option value="20">20</option>
+            <option value="21">21</option>
+            <option value="22">22</option>
+            <option value="23">23</option>
+            <option value="24">24</option>
+            <option value="25">25</option>
+            <option value="26">26</option>
+            <option value="27">27</option>
+            <option value="28">28</option>
+            <option value="29">29</option>
+            <option value="30">30</option>
+            <option value="35">35</option>
+            <option value="40">40</option>
+            <option value="45">45</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label
+            >Estado (opcional):</label
+          >
+          <select
+            id="estado4devs"
+          >
+            <option value="">Qualquer</option>
+            <option value="AC">AC</option>
+            <option value="AL">AL</option>
+            <option value="AM">AM</option>
+            <option value="AP">AP</option>
+            <option value="BA">BA</option>
+            <option value="CE">CE</option>
+            <option value="DF">DF</option>
+            <option value="ES">ES</option>
+            <option value="GO">GO</option>
+            <option value="MA">MA</option>
+            <option value="MG">MG</option>
+            <option value="MS">MS</option>
+            <option value="MT">MT</option>
+            <option value="PA">PA</option>
+            <option value="PB">PB</option>
+            <option value="PE">PE</option>
+            <option value="PI">PI</option>
+            <option value="PR">PR</option>
+            <option value="RJ">RJ</option>
+            <option value="RN">RN</option>
+            <option value="RS">RS</option>
+            <option value="RO">RO</option>
+            <option value="RR">RR</option>
+            <option value="SC">SC</option>
+            <option value="SE">SE</option>
+            <option value="SP">SP</option>
+            <option value="TO">TO</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label
+            >Quantidade:</label
+          >
+          <input
+            type="number"
+            id="qtde4devs"
+            value="1"
+            min="1"
+            max="10000"
+          />
+        </div>
+
+        <div class="form-check">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="pontuacao4devs"
+            checked
+          />
+          <label
+            class="form-check-label"
+            for="pontuacao4devs"
+            >Com pontuação (CPF, RG, etc)</label
+          >
+        </div>
+
+        <div class="form-check">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            id="fecharAba4devs"
+          />
+          <label
+            class="form-check-label"
+            for="fecharAba4devs"
+            >Fechar aba do 4Devs após gerar</label
+          >
+        </div>
+      </div>
+
+      <!-- Histórico de pessoas geradas -->
+      <div
+      >
+        <div
+        >
+          <h4>📋 Pessoas Geradas</h4>
+          <button
+            id="limparPessoasBtn"
+          >
+            Limpar
+          </button>
+        </div>
+        <div
+          id="pessoasGeradasList"
+        >
+          <div>
+            Nenhuma pessoa gerada ainda
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Seleção de Campos para Teste -->
+    <div class="modal" id="testSelectionModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">🧪 Selecionar Chaves do JSON para Teste</h5>
+            <button type="button" class="btn-close" id="cancelTestSelectionBtn">
+              &times;
+            </button>
+          </div>
+          <div class="modal-body">
+            <p>
+              Selecione quais <strong>chaves do JSON</strong> receberão o
+              prefixo <strong>[TESTE]</strong>:
+              <span
+                >💾 As preferências são salvas automaticamente</span
+              >
+            </p>
+            <div id="testFieldList">
+              <!-- Lista de chaves do JSON será renderizada aqui -->
+            </div>
+            <div
+            >
+              <button
+                id="selectAllTestFields"
+              >
+                Selecionar Todos
+              </button>
+              <button
+                id="deselectAllTestFields"
+              >
+                Desmarcar Todos
+              </button>
+              <button
+                id="saveTestPreferencesBtn"
+              >
+                💾 Salvar Preferências
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              id="cancelTestSelectionBtn2"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="confirmTestSelectionBtn"
+            >
+              ✅ Preencher com Teste
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de teste da aba Requisição (mesmo modelo do modal do Início) -->
+    <div class="modal" id="reqTestModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">🧪 Selecionar Chaves do JSON para Teste</h5>
+            <button type="button" class="btn-close" id="reqTestClose" aria-label="Fechar">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p>
+              Selecione quais <strong>chaves do JSON</strong> receberão o prefixo <strong>[TESTE]</strong>:
+              <span class="req-saved-note">💾 As preferências são salvas no mapeamento (as mesmas do Início)</span>
+            </p>
+            <input id="reqTestFilter" class="form-control req-filter" placeholder="Filtrar chaves…" aria-label="Filtrar chaves" autocomplete="off" />
+            <div id="reqTestFieldList" class="req-pick-list"></div>
+            <div class="req-picker-actions">
+              <button type="button" id="reqTestAll" class="btn btn-secondary btn-sm">Selecionar Todos</button>
+              <button type="button" id="reqTestNone" class="btn btn-secondary btn-sm">Desmarcar Todos</button>
+              <button type="button" id="reqTestOnlyUsed" class="btn btn-secondary btn-sm" title="Marca só as chaves que têm campo na requisição">Só as da requisição</button>
+              <button type="button" id="reqTestSave" class="btn btn-secondary btn-sm">💾 Salvar Preferências</button>
+            </div>
+            <label class="req-check req-dontask"><input type="checkbox" id="reqTestRemember" /> 🔇 Não perguntar novamente para este perfil <small>(usará as preferências salvas)</small></label>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="reqTestCancel">Cancelar</button>
+            <button type="button" class="btn btn-outline-danger" id="reqTestOff" hidden>Desativar teste</button>
+            <button type="button" class="btn btn-primary" id="reqTestConfirm">✅ Preencher com Teste</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: adicionar campos à requisição (mapeamento · JSON · página · manual) -->
+    <div class="modal" id="reqAddModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">＋ Adicionar campos à requisição</h5>
+            <button type="button" class="btn-close" id="reqAddClose" aria-label="Fechar">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="req-seg req-seg-4" role="tablist" aria-label="Origem dos campos">
+              <button type="button" data-add-src="mapping" class="active">🗺️ Mapeamento</button>
+              <button type="button" data-add-src="data">📦 JSON de dados</button>
+              <button type="button" data-add-src="page">🌐 Página</button>
+              <button type="button" data-add-src="manual">✍️ Manual</button>
+            </div>
+            <p id="reqAddHint" class="text-muted req-hint"></p>
+            <select id="reqPickerForm" class="form-control" aria-label="Formulário da página" hidden></select>
+            <div id="reqAddList">
+              <input id="reqPickerFilter" class="form-control req-filter" placeholder="Filtrar por nome, rótulo ou tipo…" aria-label="Filtrar campos" autocomplete="off" />
+              <div class="req-picker-actions">
+                <button type="button" id="reqPickerAll" class="btn btn-secondary btn-sm">Todos</button>
+                <button type="button" id="reqPickerNone" class="btn btn-secondary btn-sm">Nenhum</button>
+                <button type="button" id="reqPickerMissing" class="btn btn-secondary btn-sm" title="Marca só os que ainda não estão na requisição">Só os que faltam</button>
+                <span id="reqPickerCount" class="text-muted"></span>
+              </div>
+              <div id="reqPickerList" class="req-pick-list"></div>
+              <label class="req-check"><input type="checkbox" id="reqPickerValues" checked /> Trazer também os valores</label>
+            </div>
+            <div id="reqAddManual" hidden>
+              <label>Nome do campo <input id="reqManualKey" class="form-control" placeholder="Ex.: cpf ou telefones[]" autocomplete="off" spellcheck="false" /></label>
+              <label>Valor <input id="reqManualValue" class="form-control" placeholder="Opcional — aceita {{variáveis}}" autocomplete="off" /></label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="reqAddCancel">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="reqPickerAdd">Adicionar selecionados</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Subir Novo JSON (Bootstrap) -->
+    <div class="modal fade" id="newJsonModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">📎 Subir / Adicionar JSON</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="data-safety-banner modal-safety"><strong>🔒 Este JSON será salvo como dado</strong><span>Ele será usado pelos campos já mapeados. Nenhum campo do mapeamento será substituído.</span></div>
+            <div class="alert alert-info">
+              Cole um JSON com a <strong>mesma estrutura</strong> do perfil
+              selecionado, mas com valores diferentes. Se este mapeamento ainda
+              não tiver JSON, o arquivo será apenas anexado e o mapeamento atual
+              será preservado.
+            </div>
+            <div class="profile-name" id="selectedProfileName"></div>
+            <div class="expected-keys">
+              💡 Chaves esperadas: <span id="expectedKeysDisplay"></span>
+            </div>
+            <div class="mb-2">
+              <label
+                class="form-label"
+                >JSON com novos valores:</label
+              >
+              <textarea
+                id="newJsonData"
+                class="form-control form-control-sm"
+                rows="6"
+                placeholder='{"nome":"João"}'
+              ></textarea>
+              <div class="text-muted mt-1">
+                JSON minificado e parcial também funciona. Ex.: <code>{"cpf":"00000000000"}</code>
+              </div>
+            </div>
+            <div class="form-check mb-2">
+              <input
+                class="form-check-input"
+                type="checkbox"
+                id="saveHistoryCheck"
+                checked
+                disabled
+              />
+              <label
+                class="form-check-label"
+              >
+                Salvar automaticamente no histórico (JSONs nunca substituem o mapeamento)
+              </label>
+            </div>
+            <div id="historyContainer" style="display: none">
+              <div class="section-title">
+                📜 Histórico de JSONs
+              </div>
+              <div id="historyList" class="history-list"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="confirmNewJsonBtn" class="btn btn-success">
+              ✅ Adicionar / Preencher
+            </button>
+            <button
+              id="cancelNewJsonBtn"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              ❌ Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Novo Perfil (Bootstrap) -->
+    <div class="modal fade" id="newProfileModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">＋ Criar Perfil</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label class="form-label">Nome do perfil:</label>
+              <input type="text" id="newProfileName" class="form-control form-control-sm" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">JSON padrão (opcional):</label>
+              <textarea id="newProfileJson" class="form-control form-control-sm" rows="7" placeholder='{"campo":"valor"}'></textarea>
+              <div class="text-muted mt-1">Este JSON será o dado padrão do perfil. JSONs usados posteriormente não substituem este dado.</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="confirmNewProfileBtn" class="btn btn-success">💾 Criar perfil</button>
+            <button id="cancelNewProfileBtn" class="btn btn-secondary" data-bs-dismiss="modal">❌ Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Editar Perfil (Bootstrap) -->
+    <div class="modal fade" id="editProfileModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">✏️ Editar Perfil</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label
+                class="form-label"
+                >Nome do perfil:</label
+              >
+              <input
+                type="text"
+                id="editProfileName"
+                class="form-control form-control-sm"
+              />
+            </div>
+            <div class="mb-2">
+              <label
+                class="form-label"
+                >JSON (dados):</label
+              >
+              <textarea
+                id="editProfileJson"
+                class="form-control form-control-sm"
+                rows="6"
+              ></textarea>
+              <div class="text-muted mt-1">Somente o JSON salvo aqui define o dado padrão do perfil.</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="confirmEditProfileBtn" class="btn btn-success">
+              💾 Salvar
+            </button>
+            <button
+              id="cancelEditProfileBtn"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              ❌ Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Preencher variáveis ({{variavel}}) -->
+    <div class="modal fade" id="variablesModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">🔤 Preencher variáveis</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info">
+              Informe cada variável — ela substitui <code>{{variavel}}</code> antes de preencher.
+              <b>Enter</b> próxima · <b>Shift+Enter</b> nova linha · <b>Ctrl+Enter</b> preenche. Em listas, <b>Enter</b> adiciona um item.
+            </div>
+            <div id="variablesList"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary btn-sm" id="cancelVariablesBtn">Cancelar</button>
+            <button type="button" class="btn btn-primary btn-sm" id="confirmVariablesBtn">Preencher</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Editar Valor (Bootstrap) -->
+    <div class="modal fade" id="editValueModal" tabindex="-1" data-bs-backdrop="static" >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">✏️ Editar Valor</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info">
+              Digite o valor que será preenchido neste campo (modo Default).
+              <b>Enter</b> cria uma nova linha; <b>Ctrl+Enter</b> salva.
+              Você também pode digitar <code>\n</code> ou <code>&lt;br&gt;</code>
+              no texto para forçar uma quebra de linha.
+              Use <code>{{variavel}}</code> para perguntar na hora, <code>{{hoje}}</code> para valores automáticos ou <code>{{cor|Azul|Verde}}</code> para escolher numa lista. Cálculos: <code>{{preco * qtd}}</code> ou <code>{{a + 10}}</code>. Contas com horários: <code>{{fim - inicio | h}}</code> → resultado em HH:MM. Converta com <code>|</code>: <code>{{valor | moeda}}</code>, <code>{{nome | maiusculas}}</code>, <code>{{hoje + 30}}</code>, <code>{{se(total &gt; 100, "Sim", "Não")}}</code>. Listas: <code>{{repetição('-')}}</code> deixa você adicionar quantos itens quiser ao preencher, cada um numa linha com o prefixo; <code>{{lista('-')}}</code> faz o mesmo, mas nos editores de texto cola como <b>lista de verdade</b> (marcadores). Veja todas em VARIAVEIS.md.
+            </div>
+            <div class="mb-2">
+              <label
+                class="form-label"
+              >
+                Campo:
+                <span
+                  id="editFieldName"
+                  class="fw-semibold text-primary"
+                ></span>
+              </label>
+              <textarea
+                id="editFieldValue"
+                class="form-control edit-value-textarea"
+                rows="8"
+                spellcheck="false"
+                placeholder="Digite o texto aqui. Use Enter para quebrar linha..."
+              ></textarea>
+              <button
+                type="button"
+                id="insertVariableBtn"
+                class="btn btn-outline-secondary btn-sm mt-2"
+                title="Insere {{variavel}} na posição do cursor"
+              >{{ }} Inserir variável</button>
+              <div id="tokenPreview" class="token-preview" aria-live="polite" hidden></div>
+              <div id="quickVariables" class="quick-vars"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="confirmEditValueBtn" class="btn btn-success">
+              💾 Salvar
+            </button>
+            <button
+              id="cancelEditValueBtn"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              ❌ Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <section id="fillReport" class="fill-report-v13" hidden aria-label="Relatório do preenchimento"></section>
+    <!-- Rodapé com créditos -->
+    <div class="footer v20-credits">
+      <span>Desenvolvido por <strong>Mateus Oliveira de Jesus</strong> · 2026</span>
+      <button id="creditsBtn" class="btn btn-link btn-sm">Sobre / Créditos</button>
+    </div>
+
+    <!-- MODAL DE CRÉDITOS -->
+    <div class="modal fade" id="creditsModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered">
+        <div
+          class="modal-content shadow-lg"
+        >
+          <!-- Header -->
+          <div
+            class="modal-header py-2 px-4"
+          >
+            <h6
+              class="modal-title d-flex align-items-center gap-2"
+            >
+              <img
+                src="icons/image-extensao.png"
+                alt="Ícone"
+              />
+              <span>Sobre o Mapeador</span>
+            </h6>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+
+          <!-- Body -->
+          <div class="modal-body px-4 py-3">
+            <!-- Logo central -->
+            <div class="text-center mb-3">
+              <img
+                src="icons/image-extensao.png"
+                alt="Mapeador"
+              />
+              <h6 class="fw-bold mt-2 mb-0">
+                📝 Mapeador de Formulários
+              </h6>
+              <span
+                class="badge"
+                >v13</span
+              >
+            </div>
+
+            <!-- Tabela de informações -->
+            <div class="table-responsive">
+              <table
+                class="table table-borderless table-sm mb-0"
+              >
+                <tbody>
+                  <tr>
+                    <td
+                    >
+                      👨‍💻 Autor
+                    </td>
+                    <td
+                    >
+                      Mateus Oliveira de Jesus
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                    >
+                      📧 Contato
+                    </td>
+                    <td>
+                      <a
+                        href="mailto:mateus.oliveira.retiba@email.com"
+                      >
+                        mateus.oliveira.retiba@email.com
+                      </a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                    >
+                      📅 Ano
+                    </td>
+                    <td
+                    >
+                      2026
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                    >
+                      🛠️ Versão
+                    </td>
+                    <td>
+                      <span
+                        class="badge"
+                        >47.0.0</span
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                    >
+                      📦 Tecnologias
+                    </td>
+                    <td
+                    >
+                      <span
+                        class="badge"
+                        >Chrome API</span
+                      >
+                      <span
+                        class="badge"
+                        >JavaScript</span
+                      >
+                      <span
+                        class="badge"
+                        >Bootstrap</span
+                      >
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Rodapé do body -->
+            <div
+              class="text-center text-muted mt-3"
+            >
+              <span>💡 Feito com ❤️ para facilitar seu dia-a-dia</span>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div
+            class="modal-footer py-2 px-4"
+          >
+            <button
+              type="button"
+              class="btn btn-primary btn-sm w-100"
+              data-bs-dismiss="modal"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/frames.js"></script>
+    <script src="js/bootstrap.js"></script>
+    <script src="js/variaveis.js"></script>
+    <script src="js/popup.js"></script>
+    <script src="js/integracao-ia.js"></script>
+    <script src="js/ux.js"></script>
+    <script src="js/request-core.js"></script>
+    <script src="js/request.js"></script>
+    <script src="js/request-advanced.js"></script>
+    <script src="js/request-report.js"></script>
+    <script src="js/backup.js"></script>
+    <script src="js/discovery-ui.js"></script>
+    <script src="js/v52-ux.js"></script>
+</body>
+</html>

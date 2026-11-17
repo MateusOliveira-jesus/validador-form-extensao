@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "Mapeador de Formulários",
+  "version": "54.2.0",
+  "description": "Mapeia formulários, preenche com JSON, testa requisições e faz backup completo em um único arquivo.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs",
+    "scripting",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Mapeador",
+    "default_icon": {
+      "16": "icons/image-extensao.png",
+      "48": "icons/image-extensao.png",
+      "128": "icons/image-extensao.png"
+    }
+  },
+  "icons": {
+    "16": "icons/image-extensao.png",
+    "48": "icons/image-extensao.png",
+    "128": "icons/image-extensao.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "js/mask-bridge.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "js/content.js",
+        "js/discovery-content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup.html",
+        "icons/image-extensao.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}
