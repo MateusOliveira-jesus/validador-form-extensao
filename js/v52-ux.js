@@ -78,7 +78,7 @@
   }
 
   // ---------- caixas JSON ----------
-  const JSON_IDS = ["reqData", "reqHeaders", "reqEnvJson", "reqSchemaInput", "dadoJsonText", "newProfileJson"];
+  const JSON_IDS = ["reqData", "reqHeaders", "dadoJsonText", "newProfileJson"];
   function enhanceJson(ta) {
     if (!ta || ta.dataset.v52) return;
     ta.dataset.v52 = "1";

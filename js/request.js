@@ -89,7 +89,7 @@
     const profile = window.MapeadorApp?.getActiveProfile?.();
     const base = profile ? window.MapeadorApp?.getCurrentData?.(profile) || profile.data || {} : {};
     const person = sourceMode() === "remembered" ? pessoas[Number($("reqRemembered").value)]?.dados : null;
-    return { ...base, ...(person || {}), ...(window.__mapeadorEnvSession || {}) };
+    return { ...base, ...(person || {}) };
   }
   const resolveVars = (text, values = varValues()) => C.resolveTemplate(text, values, VARS);
 

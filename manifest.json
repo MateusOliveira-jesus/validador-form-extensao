@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Mapeador de Formulários",
-  "version": "54.2.0",
-  "description": "Mapeia formulários, preenche com JSON, testa requisições e faz backup completo em um único arquivo.",
+  "name": "Validador e Formulário",
+  "version": "55.1.0",
+  "description": "Mapeia e preenche formulários com JSON, valida e testa requisições e faz backup completo em um único arquivo.",
   "permissions": [
     "storage",
     "activeTab",
@@ -15,7 +15,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Mapeador",
+    "default_title": "Validador e Formulário",
     "default_icon": {
       "16": "icons/image-extensao.png",
       "48": "icons/image-extensao.png",

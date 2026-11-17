@@ -1,5 +1,23 @@
 # Changelog
 
+## v55.1.0 — bolinha arrastável
+- **A bolinha flutuante agora pode ser arrastada** para qualquer ponto da tela. Um clique simples continua abrindo o painel; só arrastar (mover mais de 4 px) reposiciona, sem abrir.
+- A posição é lembrada em todas as páginas e abas, e a bolinha é mantida dentro da janela quando ela é redimensionada.
+- **Duplo clique** na bolinha devolve ela ao canto inferior direito.
+- A posição não entra no backup (é estado de interface, como o tamanho do painel).
+
+## v55.0.0 — Validador e Formulário
+- **Novo nome:** a extensão agora se chama **Validador e Formulário** (manifest, título, cabeçalho, botão flutuante, janela "Sobre", banner de seleção e nome dos arquivos de backup: `validador-formulario-backup_AAAA-MM-DD_HH-MM.json`). Chaves de armazenamento e o formato interno do backup foram mantidos: seus dados e backups antigos continuam funcionando.
+- **Testes avançados simplificados** — de 9 blocos para 4:
+  - **Lote:** JSON/CSV colado ou pessoas lembradas, requisições por segundo, parar e exportar CSV.
+  - **Casos negativos:** marque os campos e informe o status HTTP esperado (limites e caminho de erro agora usam padrões).
+  - **Importar cURL.**
+  - **Envio:** timeout, repetição em erro 5xx, arquivo multipart e cancelar.
+- **Removidos** da área avançada: ambientes/variáveis e "extrair da resposta", árvore e busca no JSON, validação por JSON Schema, comparação com resposta anterior, prévia HTML, importação de coleção Postman, exportar/importar "dados avançados", autenticação Basic/API key (use a aba Headers ou Auth), pastas/modelos de verificações e relatório Markdown (o relatório HTML/CSV/JSON da aba Relatório continua). Configurações antigas salvas não são apagadas.
+- **Params** agora é uma subaba própria e visível (antes ficava escondida dentro dos testes avançados).
+- **Correções:** a execução em lote falhava ao iniciar (`ignored is not defined`) e travava os botões; a importação de cURL não reconhecia URL entre aspas nem corpo JSON com aspas duplas e não criava campos novos.
+- `request-advanced.js` reescrito de forma legível (≈19 KB, antes ≈36 KB em linhas densas). Testes atualizados.
+
 ## v54.2.0 — dia útil com feriados
 - Novo filtro/função `dia_util` automático: somar avança para o próximo dia útil, subtrair volta para o anterior (sábado → sexta; sexta feriada → quinta).
 - Novas funções: `dia_util_auto`, `dia_util_depois`, `dia_util_antes`, `primeiro_dia_util`, `ultimo_dia_util`, `eh_dia_util`, `eh_feriado`.

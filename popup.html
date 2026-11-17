@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <title>Validador e Formulário</title>
     <link rel="stylesheet" href="css/bootstrap.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="css/request.css" />
@@ -15,12 +16,12 @@
       <div class="app-brand">
         <img
           src="icons/image-extensao.png"
-          alt="Ícone do Mapeador de Formulários"
+          alt="Ícone do Validador e Formulário"
           class="app-icon"
         />
         <div>
-          <h3>Mapeador de Formulários</h3>
-          <div class="app-subtitle">Mapeie uma vez. Preencha quando precisar.</div>
+          <h3>Validador e Formulário</h3>
+          <div class="app-subtitle">Mapeie, preencha e valide formulários e requisições.</div>
         </div>
       </div>
       <div class="app-header-actions">
@@ -399,6 +400,13 @@
         </details>
       </div>
 
+      <!-- PARAMS -->
+      <div class="req-panel req-card" data-req-content="params" hidden>
+        <p class="text-muted req-hint">Edite os parâmetros da URL e sincronize com o destino.</p>
+        <div id="reqParamsRows"></div>
+        <div class="req-advanced-actions"><button type="button" id="reqParamsAdd" class="btn btn-secondary btn-sm">＋ Parâmetro</button><button type="button" id="reqParamsSync" class="btn btn-primary btn-sm">Sincronizar URL</button></div>
+      </div>
+
       <!-- AUTH -->
       <div class="req-panel req-card" data-req-content="auth" hidden>
         <label>Token CSRF <select id="reqTokenMode" class="form-control"><option value="auto">Automático (formulário ou meta)</option><option value="manual">Manual</option><option value="none">Sem token</option></select></label>
@@ -456,60 +464,64 @@
         <button type="button" id="reqClear" class="btn btn-danger" title="Começar uma nova requisição">🗑️ Limpar</button>
       </div>
 
-      <!-- Ferramentas avançadas de validação/API: recolhidas por padrão -->
+      <!-- Testes avançados (simplificado): lote, casos negativos, cURL e envio -->
       <details class="req-advanced-disclosure" id="reqAdvancedDisclosure">
         <summary>
-          <span class="req-advanced-disclosure-title">🧰 Testes avançados <small>Opcional · lote, casos negativos, ambientes e análise de resposta</small></span>
+          <span class="req-advanced-disclosure-title">🧰 Testes avançados <small>Opcional · lote, casos negativos e importar cURL</small></span>
           <span class="req-advanced-disclosure-hint">Expandir / recolher</span>
         </summary>
         <section class="req-panel-card req-advanced" id="reqAdvanced">
-        <div class="req-advanced-grid">
-          <div class="req-advanced-card">
-            <h4>1. Execução em lote</h4>
-            <label>Dados (JSON ou CSV; CSV usa a primeira linha como cabeçalho)</label>
-            <textarea id="reqBatchInput" rows="5" class="form-control" placeholder='[{"cpf":"..."},{"cpf":"..."}] ou cpf,nome&#10;123,Ana'></textarea>
-            <div class="req-advanced-row"><label>Limite máximo (req/s) <input id="reqBatchRate" type="number" min="0.01" max="100" step="0.1" value="1" class="form-control"></label><label>Origem <select id="reqBatchSource" class="form-control"><option value="paste">JSON/CSV colado</option><option value="remembered">Pessoas lembradas</option></select></label></div>
-            <div class="req-advanced-actions"><button type="button" id="reqBatchRun" class="btn btn-primary btn-sm">▶ Rodar lote</button><button type="button" id="reqBatchStop" class="btn btn-danger btn-sm" disabled>■ Parar</button><button type="button" id="reqBatchExport" class="btn btn-secondary btn-sm">Exportar CSV</button></div>
-            <div id="reqBatchSummary" class="req-advanced-summary" aria-live="polite"></div><div class="req-advanced-table-wrap"><table class="req-advanced-table"><thead><tr><th>#</th><th>Dados</th><th>Status</th><th>Tempo</th><th>Verificações</th></tr></thead><tbody id="reqBatchRows"></tbody></table></div>
+          <div class="req-advanced-grid">
+
+            <div class="req-advanced-card">
+              <h4>Lote</h4>
+              <p>Envia a requisição uma vez para cada linha de dados (JSON ou CSV com cabeçalho).</p>
+              <textarea id="reqBatchInput" rows="4" class="form-control" aria-label="Dados do lote" placeholder='[{"cpf":"..."},{"cpf":"..."}] ou cpf,nome&#10;123,Ana'></textarea>
+              <div class="req-advanced-row">
+                <label>Origem <select id="reqBatchSource" class="form-control"><option value="paste">JSON/CSV colado</option><option value="remembered">Pessoas lembradas</option></select></label>
+                <label>Requisições por segundo <input id="reqBatchRate" type="number" min="0.01" max="100" step="0.1" value="1" class="form-control"></label>
+              </div>
+              <div class="req-advanced-actions">
+                <button type="button" id="reqBatchRun" class="btn btn-primary btn-sm">▶ Rodar lote</button>
+                <button type="button" id="reqBatchStop" class="btn btn-danger btn-sm" disabled>■ Parar</button>
+                <button type="button" id="reqBatchExport" class="btn btn-secondary btn-sm">Exportar CSV</button>
+              </div>
+              <div id="reqBatchSummary" class="req-advanced-summary" aria-live="polite"></div>
+              <div class="req-advanced-table-wrap"><table class="req-advanced-table"><thead><tr><th>#</th><th>Dados</th><th>Status</th><th>Tempo</th><th>Verificações</th></tr></thead><tbody id="reqBatchRows"></tbody></table></div>
+            </div>
+
+            <div class="req-advanced-card">
+              <h4>Casos negativos</h4>
+              <p>Troca o valor dos campos marcados por valores inválidos (vazio, espaços, texto longo, tipo errado, caracteres especiais) e confere se o servidor recusa.</p>
+              <div id="reqNegativeFields" class="req-negative-fields"></div>
+              <label>Status HTTP esperado <input id="reqNegativeStatus" class="form-control" value="422"></label>
+              <div class="req-advanced-actions"><button type="button" id="reqNegativeRun" class="btn btn-primary btn-sm">▶ Gerar e executar</button></div>
+              <div id="reqNegativeSummary" class="req-advanced-summary" aria-live="polite"></div>
+            </div>
+
+            <div class="req-advanced-card">
+              <h4>Importar cURL</h4>
+              <textarea id="reqImportText" class="form-control" rows="3" aria-label="Comando cURL" placeholder="Cole um comando cURL"></textarea>
+              <div class="req-advanced-actions"><button type="button" id="reqImportCurl" class="btn btn-secondary btn-sm">Importar cURL</button></div>
+            </div>
+
+            <div class="req-advanced-card">
+              <h4>Envio</h4>
+              <div class="req-advanced-row">
+                <label>Timeout (ms) <input id="reqAdvancedTimeout" type="number" min="100" max="120000" value="30000" class="form-control"></label>
+                <label>Repetir se der erro 5xx <input id="reqAdvancedRetries" type="number" min="0" max="5" value="0" class="form-control"></label>
+              </div>
+              <div class="req-advanced-row">
+                <label>Campo do arquivo <select id="reqFileField" class="form-control"></select></label>
+                <label>Arquivo (multipart) <input id="reqFileInput" type="file" class="form-control"></label>
+              </div>
+              <div class="req-advanced-actions">
+                <button type="button" id="reqFileClear" class="btn btn-secondary btn-sm">Remover arquivo</button>
+                <button type="button" id="reqCancelCurrent" class="btn btn-danger btn-sm">Cancelar requisição atual</button>
+              </div>
+            </div>
+
           </div>
-          <div class="req-advanced-card">
-            <h4>2. Gerador de casos negativos</h4>
-            <p>Selecione os campos existentes. Os campos da requisição não são criados nem removidos.</p>
-            <div id="reqNegativeFields" class="req-negative-fields"></div>
-            <div class="req-advanced-row"><label>Esperado HTTP <input id="reqNegativeStatus" class="form-control" value="422"></label><label>Caminho de erro JSON <input id="reqNegativePath" class="form-control" placeholder="errors.cpf"></label></div><div class="req-advanced-row"><label>Limite mínimo <input id="reqNegativeMin" type="number" class="form-control" value="0"></label><label>Limite máximo <input id="reqNegativeMax" type="number" class="form-control" value="2147483647"></label></div>
-            <div class="req-advanced-actions"><button type="button" id="reqNegativeRun" class="btn btn-primary btn-sm">▶ Gerar e executar</button></div><div id="reqNegativeSummary" class="req-advanced-summary"></div>
-          </div>
-          <div class="req-advanced-card">
-            <h4>3. Ambientes e variáveis</h4>
-            <label>Ambiente <select id="reqEnvSelect" class="form-control"><option value="Padrão">Padrão</option></select></label><label>Nome do ambiente <input id="reqEnvName" class="form-control" value="Padrão"></label>
-            <label>Variáveis em JSON <textarea id="reqEnvJson" class="form-control" rows="4" placeholder='{"base_url":"https://api.exemplo.com","token":"..."}'></textarea></label>
-            <div class="req-advanced-actions"><button type="button" id="reqEnvSave" class="btn btn-secondary btn-sm">Salvar ambiente</button><button type="button" id="reqEnvApply" class="btn btn-primary btn-sm">Ativar ambiente</button><button type="button" id="reqEnvDelete" class="btn btn-secondary btn-sm">Excluir ambiente</button></div>
-            <label>Extrair da última resposta <input id="reqExtractPath" class="form-control" placeholder="data.token"></label><label>Nome da variável <input id="reqExtractName" class="form-control" placeholder="access_token"></label><button type="button" id="reqExtractSave" class="btn btn-secondary btn-sm">Extrair e salvar</button>
-          </div>
-          <div class="req-panel req-advanced-card" data-req-content="params" hidden>
-            <h4>Params da URL</h4><p>Edite os parâmetros e sincronize-os com a query string do destino.</p>
-            <div id="reqParamsRows"></div><div class="req-advanced-actions"><button type="button" id="reqParamsAdd" class="btn btn-secondary btn-sm">＋ Parâmetro</button><button type="button" id="reqParamsSync" class="btn btn-primary btn-sm">Sincronizar URL</button></div>
-          </div>
-          <div class="req-advanced-card">
-            <h4>5. Análise da resposta</h4>
-            <label>Buscar no JSON <input id="reqResponseSearch" class="form-control" placeholder="chave ou valor"></label><div id="reqJsonTree" class="req-json-tree"></div>
-            <label>JSON Schema <textarea id="reqSchemaInput" class="form-control" rows="4" placeholder='{"type":"object","required":["id"]}'></textarea></label><button type="button" id="reqSchemaRun" class="btn btn-secondary btn-sm">Validar Schema</button><div id="reqSchemaResult" class="req-advanced-summary"></div>
-            <div class="req-advanced-actions"><button type="button" id="reqComparePrevious" class="btn btn-secondary btn-sm">Comparar com resposta anterior</button><button type="button" id="reqShowHtml" class="btn btn-secondary btn-sm">Visualizar HTML isolado</button></div><div id="reqCompareResult" class="req-advanced-summary"></div><iframe id="reqHtmlPreview" title="Prévia HTML isolada" sandbox="" hidden></iframe>
-          </div>
-          <div class="req-advanced-card">
-            <h4>6. Importar / exportar</h4><label>cURL ou coleção Postman v2.1 <textarea id="reqImportText" class="form-control" rows="4" placeholder="Cole um comando cURL ou JSON de coleção Postman"></textarea></label><div class="req-advanced-actions"><button type="button" id="reqImportCurl" class="btn btn-secondary btn-sm">Importar cURL</button><button type="button" id="reqImportPostman" class="btn btn-secondary btn-sm">Importar Postman</button><button type="button" id="reqExportAll" class="btn btn-primary btn-sm">Exportar dados avançados</button><button type="button" id="reqImportAll" class="btn btn-secondary btn-sm">Importar backup</button></div><input id="reqImportFile" type="file" accept="application/json,.json" hidden>
-          </div>
-          <div class="req-advanced-card">
-            <h4>7. Autenticação e envio</h4>
-            <label>Autenticação <select id="reqAdvancedAuth" class="form-control"><option value="none">Sem autenticação adicional</option><option value="basic">Basic</option><option value="apikey">API key</option></select></label>
-            <label>Usuário / nome da chave <input id="reqAdvancedAuthName" class="form-control"></label><label>Senha / valor da chave <input id="reqAdvancedAuthValue" type="password" class="form-control" autocomplete="off"></label><label>Local da API key <select id="reqAdvancedAuthPlace" class="form-control"><option value="header">Header</option><option value="query">Query string</option></select></label>
-            <label>Timeout (ms) <input id="reqAdvancedTimeout" type="number" min="100" max="120000" value="30000" class="form-control"></label><button type="button" id="reqCancelCurrent" class="btn btn-danger btn-sm">Cancelar requisição atual</button><label>Repetições em erro <input id="reqAdvancedRetries" type="number" min="0" max="5" value="0" class="form-control"></label><label>Campo para arquivo <select id="reqFileField" class="form-control"></select></label><label>Arquivo multipart <input id="reqFileInput" type="file" class="form-control"></label><button type="button" id="reqFileClear" class="btn btn-secondary btn-sm">Remover arquivo selecionado</button>
-            <p class="req-advanced-note">Ambientes, limite, timeout e repetição são salvos localmente. Senhas/API keys e variáveis com nomes sensíveis não são persistidas; informe-as novamente ao abrir o popup. Backups mascaram segredos reconhecidos. Os avisos de validação continuam não bloqueantes.</p>
-          </div>
-          <div class="req-advanced-card">
-            <h4>8. Organização e modelos</h4><label>Pasta da requisição salva <input id="reqFolderName" class="form-control" placeholder="Ex.: Cadastro / Homologação"></label><div class="req-advanced-actions"><button type="button" id="reqFolderAssign" class="btn btn-secondary btn-sm">Atribuir pasta</button><button type="button" id="reqTemplateSave" class="btn btn-secondary btn-sm">Salvar modelo de verificações</button><select id="reqTemplateSelect" class="form-control"><option value="">Aplicar modelo…</option></select></div><h4>9. Relatório Markdown</h4><label>Severidade padrão <select id="reqReportSeverity" class="form-control"><option>Alta</option><option selected>Média</option><option>Baixa</option><option>Informativa</option></select></label><button type="button" id="reqReportMarkdown" class="btn btn-secondary btn-sm">Exportar relatório Markdown</button>
-          </div>
-        </div>
         </section>
       </details>
 
@@ -1173,7 +1185,7 @@
                 src="icons/image-extensao.png"
                 alt="Ícone"
               />
-              <span>Sobre o Mapeador</span>
+              <span>Sobre o Validador e Formulário</span>
             </h6>
             <button
               type="button"
@@ -1188,14 +1200,14 @@
             <div class="text-center mb-3">
               <img
                 src="icons/image-extensao.png"
-                alt="Mapeador"
+                alt="Validador e Formulário"
               />
               <h6 class="fw-bold mt-2 mb-0">
-                📝 Mapeador de Formulários
+                📝 Validador e Formulário
               </h6>
               <span
                 class="badge"
-                >v13</span
+                >v55</span
               >
             </div>
 

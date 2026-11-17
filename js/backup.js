@@ -16,7 +16,7 @@
   // Chaves com dados do usuário: os NOMES de campos dentro delas (ex.: "senha", "token") são preservados.
   const DATA_KEYS = new Set(['history', 'dadoDraft2', 'dadosSalvos', 'variableValues', 'variableRecent', 'pessoasGeradas', 'requestProfilesV24', 'requestHistoryV23', 'requestV22']);
   // Estado temporário (não é dado do usuário): fica fora do backup.
-  const VOLATILE_KEYS = new Set(['mapeadorDiscoverySelection', 'mapeadorDiscoveryQueueV17', 'floatingWindowSize', 'floatingPanelSize', 'folderOpenState']);
+  const VOLATILE_KEYS = new Set(['mapeadorDiscoverySelection', 'mapeadorDiscoveryQueueV17', 'floatingWindowSize', 'floatingPanelSize', 'floatingLauncherPos', 'folderOpenState']);
   const reserved = new Set(['__proto__', 'prototype', 'constructor']);
   const sensitive = /(^|[_-])(password|passwd|secret|token|authorization|authToken|apiKey|sessionId|accessToken|refreshToken)([_-]|$)/i;
   const isRecord = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -94,7 +94,7 @@
     try {
       const { local, sync } = await readCurrent();
       const backup = buildBackup(local, sync);
-      download(backup, `mapeador-backup_${stamp()}.json`);
+      download(backup, `validador-formulario-backup_${stamp()}.json`);
       const r = backup.resumo;
       status(`💾 Backup gerado: ${r.mapeamentos} mapeamento(s) · ${r.dadosSalvos} dado(s) salvo(s) · ${r.historico} JSON(s) no histórico · ${r.requisicoes} requisição(ões). O arquivo contém dados de teste/pessoais: guarde em local seguro.`, 'success');
     } catch (error) { status('❌ Falha ao gerar backup: ' + error.message, 'error'); }
@@ -225,7 +225,7 @@
     const local = choice === 'MESCLAR' ? merge(current.local, incoming.local) : incoming.local;
     const sync = choice === 'MESCLAR' ? { ...current.sync, ...incoming.sync } : incoming.sync;
     validateData(local);
-    download(buildBackup(current.local, current.sync), `mapeador-backup_antes-de-restaurar_${stamp()}.json`);
+    download(buildBackup(current.local, current.sync), `validador-formulario-backup_antes-de-restaurar_${stamp()}.json`);
     try {
       if (choice === 'SUBSTITUIR') { await chrome.storage.local.clear(); await chrome.storage.sync.clear(); }
       await chrome.storage.local.set(local);
