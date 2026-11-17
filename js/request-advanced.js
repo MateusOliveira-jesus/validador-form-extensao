@@ -1,172 +1,391 @@
-/* Ferramentas avançadas da aba Requisição. Sem dependências externas e sem HTML dinâmico. */
+/* Testes avançados da aba Requisição: lote, casos negativos, importar cURL e opções de envio.
+ * Sem dependências externas e sem HTML dinâmico (apenas textContent / APIs DOM). */
 (() => {
   'use strict';
-  const $ = id => document.getElementById(id), C = window.ReqCore;
+  const $ = (id) => document.getElementById(id);
+  const C = window.ReqCore;
   if (!$('reqAdvanced') || !C) return;
-  const KEY = 'requestAdvancedV1';
-  let stopping = false, running = false, previousResponse = null, latestResponse = null, batchResults = [];
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const getStore = async keys => chrome.storage.local.get(keys);
-  const setStore = async value => chrome.storage.local.set(value);
-  const safeText = (node, value) => { node.textContent = String(value ?? ''); };
-  const download = (name, text, type) => { const u = URL.createObjectURL(new Blob([text], {type})); const a = document.createElement('a'); a.href=u; a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),1500); };
-  const currentFields = () => [...$('reqFieldRows').querySelectorAll('.req-field-row')].map(row => ({row,key:row.querySelector('[aria-label="Nome do campo"]')?.value || '',value:row.querySelector('[aria-label="Valor do campo"]')?.value || '',input:row.querySelector('[aria-label="Valor do campo"]')}));
-  const captureFieldValues = () => currentFields().map(f=>({key:f.key,value:f.value}));
-  const restoreFieldValues = rows => { for(const row of rows||[]) setField(row.key,row.value); };
-  const setField = (key, value) => { const f=currentFields().find(x=>x.key===key); if(!f)return false; f.input.value = value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value); f.input.dispatchEvent(new Event('input',{bubbles:true})); return true; };
+
+  const KEY = 'requestAdvancedV1';          // mesma chave de antes: preserva as configurações já salvas
+  const REPORT_KEY = 'requestTestReportV25';
+  const MAX_ROWS = 500;                     // limite de segurança por execução
+  const NEGATIVE_KINDS = ['empty', 'spaces', 'long', 'wrongType', 'special', 'numericBounds'];
+
+  let running = false;
+  let stopping = false;
+  let batchResults = [];
+
+  // ---------- utilidades ----------
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const getStore = (keys) => chrome.storage.local.get(keys);
+  const setStore = (value) => chrome.storage.local.set(value);
+  const say = (id, text) => { $(id).textContent = String(text ?? ''); };
+  const clamp = (n, min, max, fallback) => Math.max(min, Math.min(max, Number(n) || fallback));
+  const rateDelay = () => Math.ceil(1000 / clamp($('reqBatchRate').value, 0.01, 100, 1));
+  const fire = (el, type = 'input') => el.dispatchEvent(new Event(type, { bubbles: true }));
+
+  function download(name, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  // ---------- campos da requisição ----------
+  const currentFields = () => [...$('reqFieldRows').querySelectorAll('.req-field-row')].map((row) => {
+    const input = row.querySelector('[aria-label="Valor do campo"]');
+    return { key: row.querySelector('[aria-label="Nome do campo"]')?.value || '', value: input?.value || '', input };
+  });
+  const captureFieldValues = () => currentFields().map(({ key, value }) => ({ key, value }));
+  function setField(key, value) {
+    const f = currentFields().find((x) => x.key === key);
+    if (!f?.input) return false;
+    f.input.value = value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+    fire(f.input);
+    return true;
+  }
+  const restoreFieldValues = (rows) => { for (const r of rows || []) setField(r.key, r.value); };
+  const clearFieldFilter = () => { const f = $('reqFieldFilter'); f.value = ''; fire(f); };
+
+  // ---------- execução da requisição atual ----------
   const snapshotResponse = () => {
-    const x=window.__mapeadorRequestLast;
-    if(!x)return null;
-    return {status:x.status||0,durationMs:x.durationMs||0,response:x.response,rawText:x.rawText||'',assertions:x.assertions||[],error:x.error||''};
+    const x = window.__mapeadorRequestLast;
+    if (!x) return null;
+    return { status: x.status || 0, durationMs: x.durationMs || 0, response: x.response, rawText: x.rawText || '', assertions: x.assertions || [], error: x.error || '' };
   };
+
   async function executeCurrent() {
-    const button=$('reqSend');
-    if(button.disabled) throw new Error('Já existe uma requisição em andamento.');
-    const before=snapshotResponse();delete window.__mapeadorRequestUiError;
+    const button = $('reqSend');
+    if (button.disabled) throw new Error('Já existe uma requisição em andamento.');
+    const before = snapshotResponse();
+    delete window.__mapeadorRequestUiError;
     button.click();
-    let started=false;
-    for(let i=0;i<2600;i++){
-      if(button.disabled)started=true;
-      if(started && !button.disabled) break;
-      if(!started&&i>=4){const quick=snapshotResponse();if(window.__mapeadorRequestUiError)return window.__mapeadorRequestUiError;if(quick&&quick!==before)return quick;return {status:0,durationMs:0,response:null,rawText:$('reqNotice').textContent||'A requisição não iniciou.',error:$('reqNotice').textContent||'A requisição não iniciou.',assertions:[]}}
+    let started = false;
+    for (let i = 0; i < 2600; i++) {
+      if (button.disabled) started = true;
+      if (started && !button.disabled) break;
+      if (!started && i >= 4) {
+        if (window.__mapeadorRequestUiError) return window.__mapeadorRequestUiError;
+        const quick = snapshotResponse();
+        if (quick && quick !== before) return quick;
+        const msg = $('reqNotice')?.textContent || 'A requisição não iniciou.';
+        return { status: 0, durationMs: 0, response: null, rawText: msg, error: msg, assertions: [] };
+      }
       await sleep(50);
     }
-    if(button.disabled) throw new Error('A requisição não terminou dentro do timeout configurado.');
-    const result=snapshotResponse();
-    if(!result || result===before) return result;
-    latestResponse=result;
-    return result;
+    if (button.disabled) throw new Error('A requisição não terminou dentro do timeout configurado.');
+    return snapshotResponse();
   }
-  function setBatchRows(rows) {
-    const body=$('reqBatchRows'); body.replaceChildren();
-    rows.forEach((r,i)=>{const tr=document.createElement('tr');[i+1,JSON.stringify(C.redactSensitive(r.data)),r.status||'—',r.ms==null?'—':`${r.ms} ms`,r.checks||'—'].forEach(v=>{const td=document.createElement('td');td.textContent=String(v);tr.append(td)});body.append(tr)});
-  }
-  async function batchInput() {
-    if($('reqBatchSource').value==='remembered'){
-      const data=(await getStore('pessoasGeradas')).pessoasGeradas||[];
-      return data.filter(p=>p?.dados&&typeof p.dados==='object').map(p=>({...p.dados}));
-    }
-    return C.parseBatchInput($('reqBatchInput').value,'auto');
-  }
-  function setStatusSummary(prefix='') { const ok=batchResults.filter(x=>x.status>=200&&x.status<300).length; const fail=batchResults.length-ok; safeText($('reqBatchSummary'),`${prefix}${batchResults.length} executada(s) · ${ok} HTTP 2xx · ${fail} outra(s)${stopping?' · interrompido':''}`); }
-  async function runBatch(rows, label='Lote') {
-    if(running) return;
-    if(!rows.length) throw new Error('Nenhuma linha de dados foi encontrada.');
-    if(rows.length>500)throw new Error('O limite seguro é 500 requisições por execução. Divida o arquivo em lotes menores.');
-    $('reqFieldFilter').value='';$('reqFieldFilter').dispatchEvent(new Event('input',{bubbles:true})); const fields=currentFields(); const keys=new Set(fields.map(f=>f.key));
-    const invalid=rows.findIndex(r=>Object.keys(r).some(k=>!keys.has(k)));
-    if(invalid>=0) throw new Error(`A linha ${invalid+1} contém campo que não existe na requisição. Adicione o campo manualmente antes de executar; origens de dados não criam campos automaticamente.`);
-    const originalValues=captureFieldValues(),confirmNode=$('reqConfirm'),confirmWasChecked=!!confirmNode?.checked;
-    if(confirmWasChecked&&$('reqMethod').value!=='GET'&&!confirm(`Executar ${rows.length} requisição(ões) em lote para ${$('reqUrl').value}? A operação pode alterar dados no servidor.`))return;
-    if(confirmNode)confirmNode.checked=false;
-    running=true; stopping=false; batchResults=[]; $('reqBatchRun').disabled=true; $('reqBatchStop').disabled=false;
-    setBatchRows([]); safeText($('reqBatchSummary'),`${label}: iniciando ${rows.length} linha(s)…${ignored?` ${ignored} chave(s) desconhecida(s) serão ignoradas.`:''}`);
-    const maxRps=Math.max(0.01,Math.min(100,Number($('reqBatchRate').value)||1)); const rate=Math.ceil(1000/maxRps);
-    try {
-      for(let i=0;i<rows.length;i++){
-        if(stopping)break;
-        for(const [k,v] of Object.entries(rows[i])) setField(k,v);
-        const started=performance.now(); let result;
-        try { result=await executeCurrent(); }
-        catch(e){result={status:0,durationMs:Math.round(performance.now()-started),error:e.message,assertions:[]};}
-        const checks=(result?.assertions||[]); const checkText=checks.length?`${checks.filter(x=>x.pass).length}/${checks.length}`:'—';
-        batchResults.push({data:C.redactSensitive(rows[i]),status:result?.status||0,ms:result?.durationMs??Math.round(performance.now()-started),checks:checkText,error:result?.error||''});
-        setBatchRows(batchResults); setStatusSummary(`${label}: `);
-        if(i<rows.length-1 && rate) await sleep(rate);
-      }
-    } finally { restoreFieldValues(originalValues);if(confirmNode)confirmNode.checked=confirmWasChecked; running=false; $('reqBatchRun').disabled=false; $('reqBatchStop').disabled=true; setStatusSummary(`${label}: `); }
-  }
-  $('reqBatchRun').addEventListener('click',async()=>{try{await runBatch(await batchInput())}catch(e){safeText($('reqBatchSummary'),`Erro: ${e.message}`)}});
-  $('reqBatchStop').addEventListener('click',()=>{stopping=true;$('reqBatchStop').disabled=true;safeText($('reqBatchSummary'), 'Parada solicitada; a requisição atual será concluída antes de interromper o lote.')});
-  $('reqBatchExport').addEventListener('click',()=>{const rows=batchResults;if(!rows.length)return;const keys=['status','ms','checks','error','data'];const csv=[keys.join(';'),...rows.map(r=>keys.map(k=>'"'+String(typeof r[k]==='object'?JSON.stringify(r[k]):r[k]??'').replace(/"/g,'""')+'"').join(';'))].join('\r\n');download('resultado-lote.csv','\ufeff'+csv,'text/csv;charset=utf-8')});
 
-  function renderNegativeFields(){const box=$('reqNegativeFields');box.replaceChildren();for(const f of currentFields()){const label=document.createElement('label'),cb=document.createElement('input');cb.type='checkbox';cb.value=f.key;label.append(cb,document.createTextNode(' '+f.key));box.append(label)}}
-  renderNegativeFields();
-  $('reqNegativeRun').addEventListener('click',async()=>{
-    if(running)return;
-    const selectedBefore=[...$('reqNegativeFields').querySelectorAll('input:checked')].map(x=>x.value);$('reqFieldFilter').value='';$('reqFieldFilter').dispatchEvent(new Event('input',{bubbles:true}));renderNegativeFields();for(const cb of $('reqNegativeFields').querySelectorAll('input'))cb.checked=selectedBefore.includes(cb.value);
-    const selected=[...$('reqNegativeFields').querySelectorAll('input:checked')].map(x=>x.value); if(!selected.length){safeText($('reqNegativeSummary'),'Selecione ao menos um campo.');return}
-    const base=currentFields(); const cases=[];
-    for(const key of selected){const f=base.find(x=>x.key===key);for(const c of C.negativeCases(f?.value||'', ['empty','spaces','long','wrongType','special','numericBounds'], {minimum:Number($('reqNegativeMin').value)||0, maximum:Number($('reqNegativeMax').value)||2147483647}))cases.push({key,kind:c.kind,value:c.value})}
-    if(cases.length>500){safeText($('reqNegativeSummary'),'O limite seguro é 500 casos por execução. Selecione menos campos ou reduza as variações.');return}running=true;
-    const status=Number($('reqNegativeStatus').value)||422, path=$('reqNegativePath').value.trim();let passed=0;
-    const originalValues=captureFieldValues(),confirmNode=$('reqConfirm'),confirmWasChecked=!!confirmNode?.checked;
-    if(confirmWasChecked&&$('reqMethod').value!=='GET'&&!confirm(`Executar ${cases.length} casos negativos para ${$('reqUrl').value}? A operação pode alterar dados no servidor.`)){running=false;return}
-    if(confirmNode)confirmNode.checked=false;$('reqNegativeRun').disabled=true;$('reqBatchRun').disabled=true;$('reqBatchStop').disabled=false;stopping=false;const negRate=Math.ceil(1000/Math.max(0.01,Math.min(100,Number($('reqBatchRate').value)||1)));$('reqBatchRows').replaceChildren();
-    try{for(let i=0;i<cases.length;i++){if(stopping)break;const c=cases[i];setField(c.key,c.value);const r=await executeCurrent();let valid=(r?.status===status);if(path){const found=C.getPath(r?.response,path);valid=valid&&found.found}if(valid)passed++;await annotateLatestReport(`Caso negativo ${c.kind} no campo ${c.key}`,valid,`HTTP ${status}${path?' + '+path:''}`,`HTTP ${r?.status||0}${path?' + '+(C.getPath(r?.response,path).found?'caminho presente':'caminho ausente'):''}`);const tr=document.createElement('tr');[c.key,c.kind,r?.status||0,valid?'Conforme':'Divergente'].forEach(v=>{const td=document.createElement('td');td.textContent=String(v);tr.append(td)});$('reqBatchRows').append(tr);safeText($('reqNegativeSummary'),`${i+1}/${cases.length} casos executados · ${passed} conforme(s) · ${i+1-passed} divergente(s)`);if(i<cases.length-1&&negRate)await sleep(negRate)} }catch(e){safeText($('reqNegativeSummary'),`Erro: ${e.message}`)}finally{restoreFieldValues(originalValues);if(confirmNode)confirmNode.checked=confirmWasChecked;running=false;$('reqNegativeRun').disabled=false;$('reqBatchRun').disabled=false;$('reqBatchStop').disabled=true;stopping=false}
+  // Pede confirmação uma vez e desliga a confirmação por envio durante a execução em série.
+  async function withSeries(count, label, task) {
+    const confirmNode = $('reqConfirm');
+    const wasChecked = !!confirmNode?.checked;
+    if (wasChecked && $('reqMethod').value !== 'GET'
+      && !confirm(`Executar ${count} ${label} para ${$('reqUrl').value}? A operação pode alterar dados no servidor.`)) return;
+    const originalValues = captureFieldValues();
+    if (confirmNode) confirmNode.checked = false;
+    running = true; stopping = false;
+    $('reqBatchRun').disabled = true; $('reqNegativeRun').disabled = true; $('reqBatchStop').disabled = false;
+    try { await task(); }
+    finally {
+      restoreFieldValues(originalValues);
+      if (confirmNode) confirmNode.checked = wasChecked;
+      running = false; stopping = false;
+      $('reqBatchRun').disabled = false; $('reqNegativeRun').disabled = false; $('reqBatchStop').disabled = true;
+    }
+  }
+
+  // ---------- lote ----------
+  function renderBatchRows(rows) {
+    const body = $('reqBatchRows');
+    body.replaceChildren();
+    rows.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      [i + 1, JSON.stringify(C.redactSensitive(r.data)), r.status || '—', r.ms == null ? '—' : `${r.ms} ms`, r.checks || '—'].forEach((v) => {
+        const td = document.createElement('td'); td.textContent = String(v); tr.append(td);
+      });
+      body.append(tr);
+    });
+  }
+
+  function batchSummary() {
+    const ok = batchResults.filter((x) => x.status >= 200 && x.status < 300).length;
+    say('reqBatchSummary', `${batchResults.length} executada(s) · ${ok} HTTP 2xx · ${batchResults.length - ok} outra(s)${stopping ? ' · interrompido' : ''}`);
+  }
+
+  async function batchInput() {
+    if ($('reqBatchSource').value === 'remembered') {
+      const people = (await getStore('pessoasGeradas')).pessoasGeradas || [];
+      return people.filter((p) => p?.dados && typeof p.dados === 'object').map((p) => ({ ...p.dados }));
+    }
+    return C.parseBatchInput($('reqBatchInput').value, 'auto');
+  }
+
+  async function runBatch(rows) {
+    if (running) return;
+    if (!rows.length) throw new Error('Nenhuma linha de dados foi encontrada.');
+    if (rows.length > MAX_ROWS) throw new Error(`O limite seguro é ${MAX_ROWS} requisições por execução. Divida os dados em lotes menores.`);
+    clearFieldFilter();
+    const keys = new Set(currentFields().map((f) => f.key));
+    const invalid = rows.findIndex((r) => Object.keys(r).some((k) => !keys.has(k)));
+    if (invalid >= 0) throw new Error(`A linha ${invalid + 1} tem um campo que não existe na requisição. Adicione o campo antes de executar; o lote não cria campos.`);
+
+    await withSeries(rows.length, 'requisição(ões) em lote', async () => {
+      batchResults = [];
+      renderBatchRows([]);
+      say('reqBatchSummary', `Iniciando ${rows.length} linha(s)…`);
+      for (let i = 0; i < rows.length; i++) {
+        if (stopping) break;
+        for (const [k, v] of Object.entries(rows[i])) setField(k, v);
+        const started = performance.now();
+        let result;
+        try { result = await executeCurrent(); }
+        catch (e) { result = { status: 0, durationMs: Math.round(performance.now() - started), error: e.message, assertions: [] }; }
+        const checks = result?.assertions || [];
+        batchResults.push({
+          data: C.redactSensitive(rows[i]),
+          status: result?.status || 0,
+          ms: result?.durationMs ?? Math.round(performance.now() - started),
+          checks: checks.length ? `${checks.filter((x) => x.pass).length}/${checks.length}` : '—',
+          error: result?.error || '',
+        });
+        renderBatchRows(batchResults);
+        batchSummary();
+        if (i < rows.length - 1) await sleep(rateDelay());
+      }
+    });
+    batchSummary();
+  }
+
+  $('reqBatchRun').addEventListener('click', async () => {
+    try { await runBatch(await batchInput()); }
+    catch (e) { say('reqBatchSummary', `Erro: ${e.message}`); }
+  });
+  $('reqBatchStop').addEventListener('click', () => {
+    stopping = true; $('reqBatchStop').disabled = true;
+    say('reqBatchSummary', 'Parada solicitada; a requisição atual termina antes de interromper.');
+  });
+  $('reqBatchExport').addEventListener('click', () => {
+    if (!batchResults.length) return;
+    const cols = ['status', 'ms', 'checks', 'error', 'data'];
+    const cell = (v) => '"' + String(typeof v === 'object' ? JSON.stringify(v) : v ?? '').replace(/"/g, '""') + '"';
+    const csv = [cols.join(';'), ...batchResults.map((r) => cols.map((c) => cell(r[c])).join(';'))].join('\r\n');
+    download('resultado-lote.csv', '\ufeff' + csv, 'text/csv;charset=utf-8');
   });
 
-  async function loadAdvanced(){const data=(await getStore(KEY))[KEY]||{};const legacyName=data.envName||'Padrão',legacyEnv=data.env||{};window.__mapeadorEnvironments=data.environments||{[legacyName]:legacyEnv};const active=data.activeEnv||legacyName;$('reqEnvName').value=active;window.__mapeadorEnvSession={...(window.__mapeadorEnvironments[active]||{})};$('reqEnvJson').value=JSON.stringify(window.__mapeadorEnvSession,null,2);refreshEnvironmentSelect(active);$('reqAdvancedAuth').value=data.auth?.type||'none';$('reqAdvancedAuthName').value=data.auth?.name||'';$('reqAdvancedAuthValue').value='';$('reqAdvancedAuthPlace').value=data.auth?.place||'header';$('reqAdvancedTimeout').value=data.timeout||30000;$('reqAdvancedRetries').value=data.retries||0;$('reqReportSeverity').value=data.severity||'Média';$('reqBatchRate').value=data.maxRps||1;}
-  async function saveAdvanced(){let env;try{env=JSON.parse($('reqEnvJson').value||'{}');if(!env||Array.isArray(env)||typeof env!=='object')throw Error('O ambiente precisa ser um objeto JSON.')}catch(e){throw new Error('JSON do ambiente inválido: '+e.message)}const name=$('reqEnvName').value.trim()||'Padrão';window.__mapeadorEnvSession={...env};window.__mapeadorEnvironments=window.__mapeadorEnvironments||{};window.__mapeadorEnvironments[name]={...env};const sensitive=/(token|secret|password|passwd|authorization|api[-_]?key|cookie|csrf)/i;const persistedEnvironments=Object.fromEntries(Object.entries(window.__mapeadorEnvironments).map(([n,values])=>[n,Object.fromEntries(Object.entries(values).filter(([k])=>!sensitive.test(k)))]));const data={envName:name,activeEnv:name,environments:persistedEnvironments,auth:{type:$('reqAdvancedAuth').value,name:$('reqAdvancedAuthName').value,place:$('reqAdvancedAuthPlace').value},timeout:Math.max(100,Math.min(120000,Number($('reqAdvancedTimeout').value)||30000)),retries:Math.max(0,Math.min(5,Number($('reqAdvancedRetries').value)||0)),maxRps:Math.max(0.01,Math.min(100,Number($('reqBatchRate').value)||1)),severity:$('reqReportSeverity').value};await setStore({[KEY]:data});refreshEnvironmentSelect(name);return {...data,env};}
-  function refreshEnvironmentSelect(selected){const sel=$('reqEnvSelect');if(!sel)return;sel.replaceChildren();for(const name of Object.keys(window.__mapeadorEnvironments||{}).sort())sel.add(new Option(name,name));if(!sel.options.length)sel.add(new Option('Padrão','Padrão'));sel.value=selected||$('reqEnvName').value||sel.options[0].value;}
-  $('reqEnvSelect').onchange=async()=>{const requested=$('reqEnvSelect').value;try{await saveAdvanced();const name=requested;const env=(window.__mapeadorEnvironments||{})[name]||{};$('reqEnvName').value=name;$('reqEnvJson').value=JSON.stringify(env,null,2);window.__mapeadorEnvSession={...env};const data=(await getStore(KEY))[KEY]||{};data.activeEnv=name;data.envName=name;await setStore({[KEY]:data});refreshEnvironmentSelect(name)}catch(e){refreshEnvironmentSelect($('reqEnvName').value);alert(e.message)}};
-  $('reqEnvDelete').onclick=async()=>{const name=$('reqEnvName').value.trim();if(!name)return;const envs=window.__mapeadorEnvironments||{};if(Object.keys(envs).length<=1){alert('Mantenha pelo menos um ambiente.');return}if(!confirm(`Excluir o ambiente “${name}”?`))return;delete envs[name];window.__mapeadorEnvironments=envs;const next=Object.keys(envs)[0];$('reqEnvName').value=next;$('reqEnvJson').value=JSON.stringify(envs[next],null,2);window.__mapeadorEnvSession={...envs[next]};await saveAdvanced();};
+  // ---------- casos negativos ----------
+  function renderNegativeFields() {
+    const box = $('reqNegativeFields');
+    const checked = new Set([...box.querySelectorAll('input:checked')].map((x) => x.value));
+    box.replaceChildren();
+    for (const f of currentFields()) {
+      if (!f.key) continue;
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = f.key; cb.checked = checked.has(f.key);
+      label.append(cb, document.createTextNode(' ' + f.key));
+      box.append(label);
+    }
+  }
 
-  for(const id of ['reqAdvancedAuth','reqAdvancedAuthName','reqAdvancedAuthPlace','reqAdvancedTimeout','reqAdvancedRetries','reqBatchRate','reqReportSeverity'])$(id).addEventListener('change',()=>saveAdvanced().catch(()=>{}));
+  async function annotateLatestReport(note, passed, expected, actual) {
+    await sleep(120); // aguarda o relatório registrar a resposta
+    const rows = (await getStore(REPORT_KEY))[REPORT_KEY] || [];
+    if (!rows[0]) return;
+    rows[0].notes = [rows[0].notes, note, `Esperado: ${expected}; obtido: ${actual}`].filter(Boolean).join('\n');
+    rows[0].verdict = passed ? 'pass' : 'fail';
+    rows[0].auto = true;
+    await setStore({ [REPORT_KEY]: rows });
+  }
 
-  $('reqEnvSave').onclick=async()=>{try{await saveAdvanced();alert('Ambiente salvo localmente.');}catch(e){alert(e.message)}};
-  $('reqEnvApply').onclick=async()=>{try{await saveAdvanced();$('reqUrl').dispatchEvent(new Event('input',{bubbles:true}));alert('Ambiente ativo para a próxima requisição. As variáveis {{nome}} serão resolvidas pelo motor de variáveis, sem alterar os valores originais dos campos.')}catch(e){alert(e.message)}};
-  $('reqExtractSave').onclick=async()=>{const name=$('reqExtractName').value.trim(),path=$('reqExtractPath').value.trim(),r=snapshotResponse();if(!name||!path||!r){alert('Informe o caminho, o nome e execute uma requisição primeiro.');return}const got=C.getPath(r.response,path);if(!got.found){alert('Caminho não encontrado na resposta.');return}const d=await saveAdvanced();d.env[name]=got.value;d.envName=d.envName||'Padrão';$('reqEnvJson').value=JSON.stringify(d.env,null,2);await saveAdvanced();alert(`Variável ${name} extraída e salva.`)};
+  $('reqNegativeRun').addEventListener('click', async () => {
+    if (running) return;
+    clearFieldFilter();
+    renderNegativeFields();
+    // renderNegativeFields mantém a seleção; relê depois de redesenhar
+    const selected = [...$('reqNegativeFields').querySelectorAll('input:checked')].map((x) => x.value);
+    if (!selected.length) { say('reqNegativeSummary', 'Marque ao menos um campo.'); return; }
 
-  function renderParams(){const box=$('reqParamsRows');box.replaceChildren();let params=[];try{params=[...new URL($('reqUrl').value).searchParams.entries()]}catch{}if(!params.length)params=[['','']];for(const [k,v] of params){const row=document.createElement('div');row.className='req-advanced-row';const a=document.createElement('input'),b=document.createElement('input'),del=document.createElement('button');a.className=b.className='form-control';a.placeholder='Parâmetro';b.placeholder='Valor';a.setAttribute('aria-label','Nome do parâmetro');b.setAttribute('aria-label','Valor do parâmetro');a.value=k;b.value=v;del.type='button';del.className='btn btn-sm btn-outline-danger';del.textContent='×';del.onclick=()=>row.remove();row.append(a,b,del);box.append(row)}}
-  $('reqParamsAdd').onclick=()=>{const row=document.createElement('div');row.className='req-advanced-row';for(const p of ['Parâmetro','Valor']){const i=document.createElement('input');i.className='form-control';i.placeholder=p;i.setAttribute('aria-label',p);row.append(i)}const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-danger';b.textContent='×';b.onclick=()=>row.remove();row.append(b);$('reqParamsRows').append(row)};
-  $('reqParamsSync').onclick=()=>{try{const url=new URL($('reqUrl').value);url.search='';for(const row of $('reqParamsRows').children){const [k,v]=row.querySelectorAll('input');if(k?.value)url.searchParams.append(k.value,v?.value||'')} $('reqUrl').value=url.href;$('reqUrl').dispatchEvent(new Event('input',{bubbles:true}));}catch(e){alert('URL inválida: '+e.message)}};
-  $('reqUrl').addEventListener('change',renderParams);
-  document.querySelector('[data-req-panel="params"]')?.addEventListener('click',renderParams);
+    const base = currentFields();
+    const cases = [];
+    for (const key of selected) {
+      const f = base.find((x) => x.key === key);
+      for (const c of C.negativeCases(f?.value || '', NEGATIVE_KINDS, { minimum: 0, maximum: 2147483647 })) cases.push({ key, kind: c.kind, value: c.value });
+    }
+    if (cases.length > MAX_ROWS) { say('reqNegativeSummary', `O limite seguro é ${MAX_ROWS} casos por execução. Marque menos campos.`); return; }
 
-  function responseObject(){const r=snapshotResponse();if(!r)return null;if(r.response&&typeof r.response==='object')return r.response;try{return JSON.parse(r.rawText)}catch{return null}}
-  function renderTree(value,container,path='$',query=''){
-    const entries=value&&typeof value==='object'?Object.entries(value):null;
-    if(entries){const details=document.createElement('details');details.open=path==='$';const summary=document.createElement('summary');summary.textContent=Array.isArray(value)?`Array (${value.length})`: `Objeto (${entries.length})`;details.append(summary);for(const [key,val] of entries){const childPath=Array.isArray(value)?`${path}[${key}]`:`${path}.${key}`;const line=document.createElement('div');line.style.marginLeft='12px';const match=!query||(key+' '+(typeof val==='object'?JSON.stringify(val):String(val))).toLowerCase().includes(query);if(!match&&val&&typeof val==='object'){const nested=document.createElement('div');renderTree(val,nested,childPath,query);if(nested.textContent.toLowerCase().includes(query))line.append(nested);else continue}else if(!match)continue;const label=document.createElement('span');label.textContent=`${key}: `;line.prepend(label);if(val&&typeof val==='object'){if(!line.firstChild)line.append(label);if(!line.querySelector('details'))renderTree(val,line,childPath,query)}else{const button=document.createElement('button');button.type='button';button.textContent=String(val);button.title='Clique para criar verificação';button.onclick=()=>{const add=$('reqAssertAdd');add?.click();let allRows=$('reqAssertRows')?.querySelectorAll('.req-assert-row');let row=allRows?.[allRows.length-1];const type=row?.querySelectorAll('select')[0];if(type){type.value='json';type.dispatchEvent(new Event('change',{bubbles:true}))}setTimeout(()=>{allRows=$('reqAssertRows')?.querySelectorAll('.req-assert-row');row=allRows?.[allRows.length-1];const target=row?.querySelector('[aria-label="Alvo da verificação"]');if(target){target.value=childPath;target.dispatchEvent(new Event('input',{bubbles:true}))}const op=row?.querySelectorAll('select')[1];if(op){op.value='exists';op.dispatchEvent(new Event('change',{bubbles:true}))}},20)};line.append(button)}details.append(line)}container.append(details)}else container.textContent=String(value)}
-  function updateTree(){const box=$('reqJsonTree');box.replaceChildren();const obj=responseObject();if(obj===null){const raw=snapshotResponse()?.rawText||'';const query=$('reqResponseSearch').value.trim().toLowerCase();const index=query?raw.toLowerCase().indexOf(query):-1;safeText(box,index>=0?`Texto encontrado na posição ${index}:\n${raw.slice(Math.max(0,index-100),Math.min(raw.length,index+300))}`:query?'Nenhuma ocorrência no corpo da resposta.':raw||'A resposta está vazia.');return}renderTree(obj,box,'$', $('reqResponseSearch').value.trim().toLowerCase())}
-  $('reqResponseSearch').oninput=updateTree;
-  $('reqSchemaRun').onclick=()=>{const obj=responseObject();if(obj===null){safeText($('reqSchemaResult'),'Não há resposta JSON válida.');return}try{const schema=JSON.parse($('reqSchemaInput').value);const errors=C.validateJsonSchema(obj,schema);safeText($('reqSchemaResult'),errors.length?errors.map(e=>`${e.path}: ${e.message}`).join('\n'):'Schema válido: resposta aprovada.')}catch(e){safeText($('reqSchemaResult'),'Schema JSON inválido: '+e.message)}};
-  $('reqComparePrevious').onclick=()=>{const obj=responseObject();if(obj===null){safeText($('reqCompareResult'),'Não há resposta JSON válida.');return}if(previousResponse===null){previousResponse=obj;safeText($('reqCompareResult'),'Resposta atual armazenada como referência. Execute outra requisição e compare novamente.');return}const diff=C.jsonDiff(previousResponse,obj);safeText($('reqCompareResult'),diff.length?diff.map(d=>`${d.path}\n  esperado: ${JSON.stringify(d.expected)}\n  obtido: ${JSON.stringify(d.actual)}`).join('\n'):'Sem diferenças.');previousResponse=obj};
-  $('reqShowHtml').onclick=()=>{const r=snapshotResponse();const raw=r?.rawText||'';const html=/<\s*(?:!doctype|html|body|div|p|form|script)\b/i.test(raw)?raw:'';if(!html){alert('A resposta atual não parece conter HTML.');return}const frame=$('reqHtmlPreview');frame.hidden=false;frame.srcdoc=`<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline';">${html}`;};
+    const expectedStatus = Number($('reqNegativeStatus').value) || 422;
+    let passed = 0;
+    try {
+      await withSeries(cases.length, 'casos negativos', async () => {
+        $('reqBatchRows').replaceChildren();
+        for (let i = 0; i < cases.length; i++) {
+          if (stopping) break;
+          const c = cases[i];
+          setField(c.key, c.value);
+          const r = await executeCurrent();
+          const valid = r?.status === expectedStatus;
+          if (valid) passed++;
+          await annotateLatestReport(`Caso negativo ${c.kind} no campo ${c.key}`, valid, `HTTP ${expectedStatus}`, `HTTP ${r?.status || 0}`);
+          const tr = document.createElement('tr');
+          [c.key, c.kind, r?.status || 0, valid ? 'Conforme' : 'Divergente'].forEach((v) => {
+            const td = document.createElement('td'); td.textContent = String(v); tr.append(td);
+          });
+          $('reqBatchRows').append(tr);
+          say('reqNegativeSummary', `${i + 1}/${cases.length} executados · ${passed} conforme(s) · ${i + 1 - passed} divergente(s)`);
+          if (i < cases.length - 1) await sleep(rateDelay());
+        }
+      });
+    } catch (e) { say('reqNegativeSummary', `Erro: ${e.message}`); }
+  });
 
-  function importCurl(text){const m=text.match(/(?:^|\s)(https?:\/\/[^\s'"\\]+)/);if(!m)throw Error('Não encontrei uma URL HTTP no cURL.');$('reqUrl').value=m[1].replace(/[;,]+$/,'');const method=text.match(/\s-X\s+['"]?([A-Z]+)['"]?/i);if(method)$('reqMethod').value=method[1].toUpperCase();const headers={};for(const h of text.matchAll(/-H\s+['"]([^:'"]+):\s*([^'"]*)['"]/g))headers[h[1]]=h[2];if(Object.keys(headers).length)$('reqHeaders').value=JSON.stringify(headers,null,2);const data=text.match(/(?:--data-raw|--data|--data-binary)\s+['"]([\s\S]*?)['"]/);if(data){try{const obj=JSON.parse(data[1]);if(obj&&typeof obj==='object'&&!Array.isArray(obj)){for(const [k,v] of Object.entries(obj)){if(!currentFields().some(f=>f.key===k))$('reqAddRow').click();setField(k,v)}}}catch{}}$('reqUrl').dispatchEvent(new Event('input',{bubbles:true}));}
-  $('reqImportCurl').onclick=()=>{try{importCurl($('reqImportText').value);alert('cURL importado. Confira URL, headers e campos antes de enviar.')}catch(e){alert(e.message)}};
-  function flattenPostman(items,out=[],folder=[]){for(const item of items||[]){if(item.item)flattenPostman(item.item,out,[...folder,item.name||'Pasta']);else if(item.request)out.push({...item.request,__postmanName:item.name||item.request.name,__postmanFolder:folder.join(' / ')})}return out}
-$('reqImportPostman').onclick=async()=>{try{const obj=JSON.parse($('reqImportText').value);if(obj.info?.schema&&!String(obj.info.schema).includes('collection/v2.1'))throw Error('A coleção não parece ser Postman v2.1.');const requests=flattenPostman(obj.item);if(!requests.length)throw Error('Nenhuma requisição encontrada.');const stored=(await getStore('requestProfilesV24')).requestProfilesV24||{};let count=0;for(const req of requests){const url=typeof req.url==='string'?req.url:req.url?.raw||'';const headers={};for(const h of req.header||[])if(!h.disabled)headers[h.key]=h.value;let data={};let format='form';if(req.body?.mode==='raw'){try{data=JSON.parse(req.body.raw);format='json'}catch{data={};}}else if(req.body?.mode==='urlencoded'){for(const x of req.body.urlencoded||[])if(!x.disabled)data[x.key]=x.value;format='urlencoded'}else if(req.body?.mode==='formdata'){for(const x of req.body.formdata||[])if(!x.disabled&&x.type!=='file')data[x.key]=x.value}const values={reqUrl:url,reqMethod:(req.method||'GET').toUpperCase(),reqFormat:format,reqData:JSON.stringify(data),reqHeaders:JSON.stringify(headers),reqHeaderRows:Object.entries(headers).map(([key,value])=>({key,value,enabled:true})),reqAsserts:[]};const name=(req.__postmanName||req.name||`Postman ${count+1}`).slice(0,100);const id=`req_postman_${Date.now()}_${count}`;stored[id]={name,values,updatedAt:new Date().toISOString(),folder:req.__postmanFolder||'Importado do Postman'};count++;}await setStore({requestProfilesV24:stored});alert(`${count} requisição(ões) importada(s) para Requisições salvas, na pasta “Importado do Postman”.`);window.dispatchEvent(new Event('mapeador:request-folders-changed'))}catch(e){alert('Falha ao importar Postman: '+e.message)}};
-  $('reqExportAll').onclick=async()=>{const d=(await getStore(null));const secret=/(authorization|auth|bearer|cookie|token|secret|password|passwd|api[-_]?key|csrf)/i;const customName=String(d[KEY]?.auth?.type==='apikey'?d[KEY].auth.name||'':'').toLowerCase();const scrub=(value,key='')=>{if(secret.test(key)||(customName&&key.toLowerCase()===customName))return '[REDACTED]';if(typeof value==='string'&&/reqHeaders|reqData/i.test(key)){try{return JSON.stringify(scrub(JSON.parse(value),''))}catch{return value}}if(typeof value==='string'&&/reqUrl|url/i.test(key)){try{const u=new URL(value);for(const k of [...u.searchParams.keys()])if(secret.test(k)||(customName&&k.toLowerCase()===customName))u.searchParams.set(k,'[REDACTED]');return u.href}catch{return value}}if(Array.isArray(value))return value.map(v=>Array.isArray(v)&&v.length===2&&typeof v[0]==='string'?[v[0],scrub(v[1],v[0])]:scrub(v));if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,scrub(v,k)]));return value};const safe=scrub(d);download('mapeador-request-advanced.json',JSON.stringify({format:'mapeador-request-advanced-v1',data:safe,warning:'Segredos reconhecidos foram substituídos por [REDACTED].'},null,2),'application/json')};
-  $('reqImportAll').onclick=()=>$('reqImportFile').click();
-  $('reqImportFile').onchange=async()=>{const f=$('reqImportFile').files[0];if(!f)return;try{const obj=JSON.parse(await f.text());if(obj.format!=='mapeador-request-advanced-v1'||!obj.data||typeof obj.data!=='object')throw Error('Arquivo de backup incompatível.');if(!confirm('Mesclar os dados do backup? Segredos marcados como [REDACTED] preservarão o valor local atual; quando não existir valor local, ficarão vazios.'))return;const current=await getStore(null);const mergeRedacted=(incoming,existing)=>{if(incoming==='[REDACTED]')return existing??'';if(typeof incoming==='string'&&typeof existing==='string'&&/^\s*[{[]/.test(incoming)&&/^\s*[{[]/.test(existing)){try{return JSON.stringify(mergeRedacted(JSON.parse(incoming),JSON.parse(existing)))}catch{}}if(Array.isArray(incoming))return incoming.map((v,i)=>mergeRedacted(v,existing?.[i]));if(incoming&&typeof incoming==='object')return Object.fromEntries(Object.entries(incoming).map(([k,v])=>[k,mergeRedacted(v,existing?.[k])]));return incoming};const merged={...current};for(const [k,v] of Object.entries(obj.data))merged[k]=mergeRedacted(v,current[k]);await setStore(merged);await loadAdvanced();alert('Dados avançados importados. Valores secretos locais foram preservados quando disponíveis.')}catch(e){alert(e.message)}finally{$('reqImportFile').value=''}};
+  // ---------- importar cURL ----------
+  function importCurl(text) {
+    const m = text.match(/(?:^|[\s'"])(https?:\/\/[^\s'"\\]+)/); // aceita URL entre aspas, como no "Copiar como cURL" do navegador
+    if (!m) throw new Error('Não encontrei uma URL HTTP no cURL.');
+    $('reqUrl').value = m[1].replace(/[;,]+$/, '');
+    const method = text.match(/\s-X\s+['"]?([A-Z]+)['"]?/i);
+    if (method) $('reqMethod').value = method[1].toUpperCase();
+    const headers = {};
+    for (const h of text.matchAll(/-H\s+['"]([^:'"]+):\s*([^'"]*)['"]/g)) headers[h[1]] = h[2];
+    if (Object.keys(headers).length) { $('reqHeaders').value = JSON.stringify(headers, null, 2); fire($('reqHeaders')); }
+    // corpo entre aspas simples (pode conter aspas duplas, como todo JSON) ou entre aspas duplas
+    const data = text.match(/(?:--data-raw|--data-binary|--data|-d)\s+(?:'([^']*)'|"((?:\\.|[^"\\])*)")/);
+    if (data) {
+      try {
+        const obj = JSON.parse(data[1] ?? data[2].replace(/\\(["\\$`])/g, '$1'));
+        if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+          for (const [k, v] of Object.entries(obj)) {
+            if (!currentFields().some((f) => f.key === k)) {
+              // cria a linha e já dá o nome, senão setField não a encontra
+              $('reqAddRow').click();
+              const rows = $('reqFieldRows').querySelectorAll('.req-field-row');
+              const nameInput = rows[rows.length - 1]?.querySelector('[aria-label="Nome do campo"]');
+              if (nameInput) { nameInput.value = k; fire(nameInput); }
+            }
+            setField(k, v);
+          }
+        }
+      } catch { /* corpo que não é JSON: ignora */ }
+    }
+    fire($('reqUrl'));
+  }
+  $('reqImportCurl').addEventListener('click', () => {
+    try { importCurl($('reqImportText').value); alert('cURL importado. Confira URL, headers e campos antes de enviar.'); }
+    catch (e) { alert(e.message); }
+  });
 
-  $('reqReportMarkdown').onclick=async()=>{const entries=(await getStore('requestTestReportV25')).requestTestReportV25||[];const rows=entries.filter(x=>x.included!==false);const esc=s=>String(s??'').replace(/[\r\n]+/g,' ');const md=['# Relatório de requisições','',`Gerado em: ${new Date().toLocaleString('pt-BR')}`,'',...rows.flatMap((r,i)=>[`## Caso ${i+1} — ${esc(r.method)} ${esc(r.url)}`,'',`- Status: ${r.status||'Erro'} | Tempo: ${r.ms||0} ms | Severidade: ${r.severity||$('reqReportSeverity').value}`,`- Resultado: ${r.verdict||'Não avaliado'} | Falha esperada: ${r.expectedFailure?'Sim':'Não'}`,...(r.checks||[]).map(c=>`- ${c.pass?'[x]':'[ ]'} ${esc(c.label)}${c.pass?'':` — esperado: ${esc(c.expected)}; obtido: ${esc(c.actual)} (${esc(c.message)})`}`),''])];download('relatorio-requisicoes.md',md.join('\n'),'text/markdown;charset=utf-8')};
+  // ---------- params da URL (aba Params) ----------
+  function paramRow(k = '', v = '') {
+    const row = document.createElement('div');
+    row.className = 'req-advanced-row';
+    const a = document.createElement('input'), b = document.createElement('input'), del = document.createElement('button');
+    a.className = b.className = 'form-control';
+    a.placeholder = 'Parâmetro'; b.placeholder = 'Valor';
+    a.setAttribute('aria-label', 'Nome do parâmetro'); b.setAttribute('aria-label', 'Valor do parâmetro');
+    a.value = k; b.value = v;
+    del.type = 'button'; del.className = 'btn btn-sm btn-outline-danger'; del.textContent = '×'; del.setAttribute('aria-label', 'Remover parâmetro');
+    del.onclick = () => row.remove();
+    row.append(a, b, del);
+    return row;
+  }
+  function renderParams() {
+    const box = $('reqParamsRows');
+    box.replaceChildren();
+    let params = [];
+    try { params = [...new URL($('reqUrl').value).searchParams.entries()]; } catch { /* URL ainda incompleta */ }
+    if (!params.length) params = [['', '']];
+    for (const [k, v] of params) box.append(paramRow(k, v));
+  }
+  $('reqParamsAdd').onclick = () => $('reqParamsRows').append(paramRow());
+  $('reqParamsSync').onclick = () => {
+    try {
+      const url = new URL($('reqUrl').value);
+      url.search = '';
+      for (const row of $('reqParamsRows').children) {
+        const [k, v] = row.querySelectorAll('input');
+        if (k?.value) url.searchParams.append(k.value, v?.value || '');
+      }
+      $('reqUrl').value = url.href;
+      fire($('reqUrl'));
+    } catch (e) { alert('URL inválida: ' + e.message); }
+  };
+  $('reqUrl').addEventListener('change', renderParams);
+  document.querySelector('[data-req-panel="params"]')?.addEventListener('click', renderParams);
 
-  // Autenticação avançada é aplicada apenas no momento do envio; segredo não é incluído em relatórios.
-  const originalSend=$('reqSend').onclick;
-  $('reqSend').onclick=async function(event){
-    const mode=$('reqAdvancedAuth').value,name=$('reqAdvancedAuthName').value,value=$('reqAdvancedAuthValue').value,place=$('reqAdvancedAuthPlace').value;
-    const oldUrl=$('reqUrl').value,oldHeaders=$('reqHeaders').value;let headers={};try{headers=JSON.parse(oldHeaders||'{}')}catch{}
-    try{
-      if(mode==='basic'){if(!name||!value)throw Error('Informe usuário e senha para autenticação Basic.');headers.Authorization='Basic '+btoa(unescape(encodeURIComponent(name+':'+value)))}
-      if(mode==='apikey'){if(!name||!value)throw Error('Informe nome e valor da API key.');if(place==='header'){headers[name]=value;window.__mapeadorSecretHeaderKey=name}else{const u=new URL(oldUrl);u.searchParams.set(name,value);$('reqUrl').value=u.href;window.__mapeadorSecretQueryKey=name}}
-      if(mode!=='none')$('reqHeaders').value=JSON.stringify(headers,null,2);
-      const retries=Math.max(0,Math.min(5,Number($('reqAdvancedRetries').value)||0));let result;
-      for(let i=0;i<=retries;i++){await originalSend.call(this,event);result=snapshotResponse();if(i===retries||!result||(result.status>0&&result.status<500))break;await sleep(Math.max(300*(i+1),Math.ceil(1000/Math.max(0.01,Math.min(100,Number($('reqBatchRate').value)||1)))))}
-    }catch(e){window.__mapeadorRequestUiError={status:0,durationMs:0,response:null,rawText:e.message,error:e.message,assertions:[]};window.dispatchEvent(new CustomEvent('mapeador:request-result',{detail:{method:$('reqMethod').value,url:oldUrl,format:$('reqFormat').value,at:new Date().toISOString(),status:0,ok:false,durationMs:0,error:e.message,requestFields:[],requestHeaders:{},response:null,assertions:[]}}));alert(e.message)}finally{$('reqUrl').value=oldUrl;$('reqHeaders').value=oldHeaders;delete window.__mapeadorSecretQueryKey;delete window.__mapeadorSecretHeaderKey}
+  // ---------- envio: timeout, repetições, cancelar ----------
+  async function loadSettings() {
+    const data = (await getStore(KEY))[KEY] || {};
+    $('reqAdvancedTimeout').value = data.timeout || 30000;
+    $('reqAdvancedRetries').value = data.retries || 0;
+    $('reqBatchRate').value = data.maxRps || 1;
+  }
+  async function saveSettings() {
+    // Mescla com o que já existe para não apagar dados de versões anteriores (ambientes, autenticação…).
+    const data = (await getStore(KEY))[KEY] || {};
+    data.timeout = clamp($('reqAdvancedTimeout').value, 100, 120000, 30000);
+    data.retries = clamp($('reqAdvancedRetries').value, 0, 5, 0);
+    data.maxRps = clamp($('reqBatchRate').value, 0.01, 100, 1);
+    await setStore({ [KEY]: data });
+  }
+  for (const id of ['reqAdvancedTimeout', 'reqAdvancedRetries', 'reqBatchRate']) $(id).addEventListener('change', () => saveSettings().catch(() => {}));
+
+  // Repetição automática em erro de rede ou 5xx (só quando configurada).
+  const originalSend = $('reqSend').onclick;
+  $('reqSend').onclick = async function (event) {
+    const retries = clamp($('reqAdvancedRetries').value, 0, 5, 0);
+    if (!retries) return originalSend.call(this, event);
+    for (let i = 0; i <= retries; i++) {
+      await originalSend.call(this, event);
+      const r = snapshotResponse();
+      if (i === retries || !r || (r.status > 0 && r.status < 500)) break;
+      await sleep(Math.max(300 * (i + 1), rateDelay()));
+    }
   };
 
-  // Resposta atualiza árvore e referência de comparação sem substituir a resposta anterior.
-  window.addEventListener('mapeador:request-result',e=>{const d=e.detail||{};latestResponse={status:d.status,response:d.response,rawText:typeof d.response==='string'?d.response:JSON.stringify(d.response??'')};updateTree()});
-  $('reqCancelCurrent').onclick=async()=>{try{const [tab]=await chrome.tabs.query({active:true,currentWindow:true});if(!tab?.id)throw Error('Nenhuma aba ativa.');await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:()=>window.__mapeadorReqAbortController?.abort(new DOMException('Cancelado pelo usuário','AbortError'))});safeText($('reqBatchSummary'),'Cancelamento solicitado para a requisição ativa.')}catch(e){alert('Não foi possível cancelar: '+e.message)}};
-  async function annotateLatestReport(note, passed, expected, actual){await sleep(120);const key='requestTestReportV25',rows=(await getStore(key))[key]||[];if(rows[0]){rows[0].notes=[rows[0].notes,note,`Esperado: ${expected}; obtido: ${actual}`].filter(Boolean).join('\n');rows[0].verdict=passed?'pass':'fail';rows[0].auto=true;await setStore({[key]:rows})}}
+  $('reqCancelCurrent').onclick = async () => {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) throw new Error('Nenhuma aba ativa.');
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func: () => window.__mapeadorReqAbortController?.abort(new DOMException('Cancelado pelo usuário', 'AbortError')) });
+      say('reqBatchSummary', 'Cancelamento solicitado para a requisição ativa.');
+    } catch (e) { alert('Não foi possível cancelar: ' + e.message); }
+  };
 
-  // Upload: o arquivo é convertido para base64 somente em memória e enviado como File multipart.
-  async function refreshFileFields(){const sel=$('reqFileField'),old=sel.value;sel.replaceChildren(new Option('Selecione um campo…',''));for(const f of currentFields())if(f.key)sel.add(new Option(f.key,f.key));if(old)sel.value=old}
-  $('reqFileInput').addEventListener('change',async()=>{const file=$('reqFileInput').files[0],key=$('reqFileField').value;if(!file)return;if(!key){alert('Selecione o campo que receberá o arquivo.');$('reqFileInput').value='';return}if(file.size>8*1024*1024){alert('Por segurança, o limite de upload pela extensão é 8 MB.');$('reqFileInput').value='';return}const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file)});window.__mapeadorRequestFiles=window.__mapeadorRequestFiles||{};window.__mapeadorRequestFiles[key]={__mapeadorFile:true,name:file.name,type:file.type,base64};$('reqFormat').value='form';alert(`Arquivo “${file.name}” pronto para envio no campo ${key}.`)});
-  function clearSelectedFile(){window.__mapeadorRequestFiles={};$('reqFileInput').value=''}
-  $('reqFileClear').onclick=clearSelectedFile;$('reqClear')?.addEventListener('click',clearSelectedFile);
-  const fieldObserver=new MutationObserver(()=>{refreshFileFields();renderNegativeFields()});fieldObserver.observe($('reqFieldRows'),{childList:true,subtree:true});refreshFileFields();
+  // ---------- arquivo multipart (convertido para base64 só em memória) ----------
+  function refreshFileFields() {
+    const sel = $('reqFileField'), old = sel.value;
+    sel.replaceChildren(new Option('Selecione um campo…', ''));
+    for (const f of currentFields()) if (f.key) sel.add(new Option(f.key, f.key));
+    if (old) sel.value = old;
+  }
+  $('reqFileInput').addEventListener('change', async () => {
+    const file = $('reqFileInput').files[0], key = $('reqFileField').value;
+    if (!file) return;
+    if (!key) { alert('Selecione o campo que receberá o arquivo.'); $('reqFileInput').value = ''; return; }
+    if (file.size > 8 * 1024 * 1024) { alert('Por segurança, o limite de upload pela extensão é 8 MB.'); $('reqFileInput').value = ''; return; }
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    window.__mapeadorRequestFiles = window.__mapeadorRequestFiles || {};
+    window.__mapeadorRequestFiles[key] = { __mapeadorFile: true, name: file.name, type: file.type, base64 };
+    $('reqFormat').value = 'form';
+    alert(`Arquivo “${file.name}” pronto para envio no campo ${key}.`);
+  });
+  function clearSelectedFile() { window.__mapeadorRequestFiles = {}; $('reqFileInput').value = ''; }
+  $('reqFileClear').onclick = clearSelectedFile;
+  $('reqClear')?.addEventListener('click', clearSelectedFile);
 
-  // Organização por pastas: metadado adicional, sem alterar o formato values legado.
-  $('reqFolderAssign').onclick=async()=>{const id=$('reqSavedSelect').value;if(!id){alert('Salve ou abra uma requisição antes de atribuir uma pasta.');return}const saved=(await getStore('requestProfilesV24')).requestProfilesV24||{};if(!saved[id])return; saved[id].folder=$('reqFolderName').value.trim()||'Sem pasta';await setStore({requestProfilesV24:saved});window.dispatchEvent(new Event('mapeador:request-folders-changed'));alert('Pasta atribuída.');};
-  const TEMPLATE_KEY='requestAssertionTemplatesV1';
-  async function refreshTemplates(){const rows=(await getStore(TEMPLATE_KEY))[TEMPLATE_KEY]||{};const sel=$('reqTemplateSelect');sel.replaceChildren(new Option('Aplicar modelo…',''));for(const [id,t] of Object.entries(rows))sel.add(new Option(t.name,id))}
-  $('reqTemplateSave').onclick=async()=>{const name=prompt('Nome do modelo de verificações:');if(!name?.trim())return;const assertions=[...$('reqAssertRows').querySelectorAll('.req-assert-row')].map(row=>{const selects=row.querySelectorAll('select'),inputs=row.querySelectorAll('input');return {type:selects[0]?.value||'status',target:row.querySelector('[aria-label="Alvo da verificação"]')?.value||'',op:selects[1]?.value||'eq',expected:row.querySelector('[aria-label="Valor esperado"]')?.value||'',enabled:row.querySelector('[aria-label="Usar esta verificação"]')?.checked!==false}});const rows=(await getStore(TEMPLATE_KEY))[TEMPLATE_KEY]||{};const id='tpl_'+Date.now();rows[id]={name:name.trim(),assertions};await setStore({[TEMPLATE_KEY]:rows});await refreshTemplates();$('reqTemplateSelect').value=id;};
-  $('reqTemplateSelect').onchange=async()=>{const id=$('reqTemplateSelect').value;if(!id)return;const rows=(await getStore(TEMPLATE_KEY))[TEMPLATE_KEY]||{},t=rows[id];if(!t)return;if(!confirm(`Adicionar ${t.assertions.length} verificação(ões) do modelo “${t.name}”?`))return;for(const a of t.assertions){$('reqAssertAdd').click();const row=$('reqAssertRows').querySelector('.req-assert-row:last-child');if(!row)continue;const type=row.querySelectorAll('select')[0];type.value=a.type;type.dispatchEvent(new Event('change',{bubbles:true}));await sleep(0);const target=row.querySelector('[aria-label="Alvo da verificação"]');if(target){target.value=a.target;target.dispatchEvent(new Event('input',{bubbles:true}))}const selects=row.querySelectorAll('select');if(selects[1]){selects[1].value=a.op;selects[1].dispatchEvent(new Event('change',{bubbles:true}))}const expected=row.querySelector('[aria-label="Valor esperado"]');if(expected){expected.value=a.expected;expected.dispatchEvent(new Event('input',{bubbles:true}))}}$('reqTemplateSelect').value=''};
-  refreshTemplates();
+  new MutationObserver(() => { refreshFileFields(); renderNegativeFields(); })
+    .observe($('reqFieldRows'), { childList: true, subtree: true });
 
-  loadAdvanced().catch(()=>{});renderParams();
+  refreshFileFields();
+  renderNegativeFields();
+  renderParams();
+  loadSettings().catch(() => {});
 })();

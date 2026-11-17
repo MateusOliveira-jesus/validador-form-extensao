@@ -26,10 +26,20 @@ assert.equal(C.jsonDiff({ id: 1 }, { id: 2 })[0].path, '$.id');
 assert.equal(C.redactSensitive({ bearer: 'secret' }).bearer, '[REDACTED]');
 
 // Integração estática da interface, segurança e compatibilidade de armazenamento.
-for (const id of ['reqBatchRun', 'reqBatchStop', 'reqNegativeRun', 'reqEnvSelect', 'reqParamsSync', 'reqSchemaRun', 'reqComparePrevious', 'reqImportPostman', 'reqAdvancedTimeout', 'reqCancelCurrent', 'reqFileInput', 'reqReportMarkdown', 'reqExpectedFailure']) {
+for (const id of ['reqBatchRun', 'reqBatchStop', 'reqBatchExport', 'reqNegativeRun', 'reqParamsSync', 'reqImportCurl', 'reqAdvancedTimeout', 'reqAdvancedRetries', 'reqCancelCurrent', 'reqFileInput', 'reqExpectedFailure']) {
   assert.match(html, new RegExp(`id=["']${id}["']`), `controle ausente: ${id}`);
 }
-assert.match(html, /<iframe[^>]+id="reqHtmlPreview"[^>]+sandbox=""/);
+// A seção avançada foi simplificada: os recursos removidos não podem deixar controles órfãos.
+for (const id of ['reqEnvSelect', 'reqSchemaRun', 'reqComparePrevious', 'reqImportPostman', 'reqAdvancedAuth', 'reqHtmlPreview', 'reqReportMarkdown', 'reqFolderAssign', 'reqTemplateSave']) {
+  assert.doesNotMatch(html, new RegExp(`id=["']${id}["']`), `controle removido ainda presente: ${id}`);
+}
+// Params fica em painel próprio (antes ficava escondido dentro dos testes avançados).
+assert.match(html, /data-req-content="params"/);
+// Todo id usado pelo módulo avançado precisa existir no HTML.
+for (const m of advanced.matchAll(/\$\('([A-Za-z0-9_]+)'\)/g)) assert.match(html, new RegExp(`id=["']${m[1]}["']`), `id usado no JS e ausente no HTML: ${m[1]}`);
+// Nome da extensão.
+assert.match(html, /<title>Validador e Formulário<\/title>/);
+assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8')).name, 'Validador e Formulário');
 assert.match(html, /<script src="js\/request-advanced\.js"><\/script>/);
 assert.doesNotMatch(advanced, /innerHTML\s*=/, 'módulo avançado não deve inserir dados de resposta com innerHTML');
 assert.doesNotMatch(report, /\.innerHTML\s*=/, 'relatório deve construir a interface com APIs DOM seguras');

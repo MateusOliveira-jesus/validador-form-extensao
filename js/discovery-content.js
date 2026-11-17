@@ -98,7 +98,7 @@
     const overlay=mk('position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #2563eb;background:rgba(37,99,235,.10);border-radius:6px;box-shadow:0 0 0 4px rgba(37,99,235,.18);box-sizing:border-box;display:none;transition:all .06s ease-out;');
     const tip=mk('position:fixed;z-index:2147483647;pointer-events:none;background:#0f172a;color:#f8fafc;padding:4px 8px;border-radius:6px;font:600 11px/1.4 system-ui,sans-serif;max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none;');
     const banner=mk('position:fixed;z-index:2147483647;top:12px;left:50%;transform:translateX(-50%);background:#0f172a;color:#f8fafc;padding:10px 16px;border-radius:999px;font:500 13px system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.35);pointer-events:none;');
-    banner.textContent=multi?'🎯 Mapeador: clique nos campos para selecioná-los · Esc para concluir':'🎯 Mapeador: clique em um campo para selecionar · Esc para cancelar';
+    banner.textContent=multi?'🎯 Validador e Formulário: clique nos campos para selecioná-los · Esc para concluir':'🎯 Validador e Formulário: clique em um campo para selecionar · Esc para cancelar';
     document.documentElement.append(overlay,tip,banner);
     const prevCursor=document.documentElement.style.cursor; document.documentElement.style.cursor='crosshair';
     const ac=new AbortController();

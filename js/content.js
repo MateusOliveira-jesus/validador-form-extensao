@@ -17,15 +17,20 @@ const FLOATING_STATE_KEY = "mapeador-formularios-floating-state"; // sessionStor
 const FLOATING_MIN_KEY = "mapeador-formularios-floating-is-minimized"; // sessionStorage: minimizado (por aba)
 const FLOATING_PREF_KEY = "floatingPanelEnabled"; // chrome.storage.local: ligado/desligado (global)
 const FLOATING_SIZE_KEY = "floatingPanelSize"; // chrome.storage.local: tamanho (global)
+const FLOATING_LAUNCHER_POS_KEY = "floatingLauncherPos"; // chrome.storage.local: posição da bolinha (global)
 
 const FLOATING_DEFAULT_SIZE = { width: 760, height: 760 };
 const FLOATING_MIN_SIZE = { width: 360, height: 320 };
 const FLOATING_MARGIN = 8;
+const LAUNCHER_SIZE = 46;
+const LAUNCHER_DEFAULT_POS = { right: 20, bottom: 20 };
+const LAUNCHER_DRAG_THRESHOLD = 4; // px: abaixo disso é clique, acima é arraste
 const FLOATING_Z_INDEX = "2147483647";
 
 // Cache em memória (evita ler o storage a cada mutação do DOM)
 let floatingEnabled = null;
 let floatingSizePref = null; // { width, height } escolhido pelo usuário
+let floatingLauncherPos = null; // { right, bottom } da bolinha, escolhido pelo usuário
 let floatingObserver = null;
 let floatingRestoreTimer = null;
 
@@ -103,15 +108,16 @@ function loadFloatingSettings(callback) {
   }
   try {
     chrome.storage.local.get(
-      [FLOATING_PREF_KEY, FLOATING_SIZE_KEY],
+      [FLOATING_PREF_KEY, FLOATING_SIZE_KEY, FLOATING_LAUNCHER_POS_KEY],
       (result) => {
         if (chrome.runtime.lastError || !result) {
-          callback(false, null);
+          callback(false, null, null);
           return;
         }
         callback(
           result[FLOATING_PREF_KEY] === true,
           normalizeStoredSize(result[FLOATING_SIZE_KEY]),
+          normalizeLauncherPos(result[FLOATING_LAUNCHER_POS_KEY]),
         );
       },
     );
@@ -130,6 +136,57 @@ function persistFloatingSize(size) {
       void chrome.runtime.lastError;
     });
   } catch (_) {}
+}
+
+function normalizeLauncherPos(pos) {
+  if (!pos || typeof pos !== "object") return null;
+  const right = Number(pos.right);
+  const bottom = Number(pos.bottom);
+  if (!Number.isFinite(right) || !Number.isFinite(bottom)) return null;
+  return { right, bottom };
+}
+
+function persistLauncherPos(pos) {
+  const normalized = normalizeLauncherPos(pos);
+  if (!normalized) return;
+  floatingLauncherPos = normalized;
+  if (!floatingStorageAvailable()) return;
+  try {
+    chrome.storage.local.set({ [FLOATING_LAUNCHER_POS_KEY]: normalized }, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch (_) {}
+}
+
+// Mantém a bolinha sempre dentro da janela do navegador
+function clampLauncherPos(pos) {
+  const base = normalizeLauncherPos(pos) || LAUNCHER_DEFAULT_POS;
+  return {
+    right: Math.round(
+      clampNumber(
+        base.right,
+        FLOATING_MARGIN,
+        window.innerWidth - LAUNCHER_SIZE - FLOATING_MARGIN,
+      ),
+    ),
+    bottom: Math.round(
+      clampNumber(
+        base.bottom,
+        FLOATING_MARGIN,
+        window.innerHeight - LAUNCHER_SIZE - FLOATING_MARGIN,
+      ),
+    ),
+  };
+}
+
+function applyLauncherPos(host, pos) {
+  if (!host) return null;
+  const clamped = clampLauncherPos(pos || floatingLauncherPos);
+  importantStyle(host, {
+    right: clamped.right + "px",
+    bottom: clamped.bottom + "px",
+  });
+  return clamped;
 }
 
 // ---------- Mensagens ----------
@@ -428,14 +485,13 @@ function createMinimizedButton() {
     all: "initial",
     display: "block",
     position: "fixed",
-    right: "20px",
-    bottom: "20px",
-    width: "46px",
-    height: "46px",
+    width: LAUNCHER_SIZE + "px",
+    height: LAUNCHER_SIZE + "px",
     margin: "0",
     padding: "0",
     "z-index": FLOATING_Z_INDEX,
   });
+  applyLauncherPos(host, floatingLauncherPos);
 
   const root = host.attachShadow({ mode: "open" });
   const iconUrl = chrome.runtime.getURL("icons/image-extensao.png");
@@ -452,23 +508,103 @@ function createMinimizedButton() {
       border-radius: 50%;
       background: #268DFF url("${iconUrl}") center / 76% no-repeat;
       box-shadow: 0 8px 28px rgba(0, 0, 0, .28);
-      cursor: pointer;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
       transition: transform .2s ease-in-out, box-shadow .2s ease-in-out;
     }
     button:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0, 0, 0, .34); }
+    button.dragging { cursor: grabbing; transition: none; transform: scale(1.08); box-shadow: 0 14px 34px rgba(0, 0, 0, .4); }
     button:focus-visible { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #268DFF; }
   `,
   );
 
   const button = document.createElement("button");
   button.type = "button";
-  button.title = "Abrir Mapeador de Formulários";
-  button.setAttribute("aria-label", "Abrir Mapeador de Formulários");
-  button.addEventListener("click", expandFloatingPanel);
+  button.title = "Abrir Validador e Formulário";
+  button.setAttribute("aria-label", "Abrir Validador e Formulário");
+  bindLauncherDrag(host, button);
   root.appendChild(button);
 
   appendToPage(host);
   return host;
+}
+
+// Arrastar a bolinha para reposicioná-la; um clique simples (sem mover) abre o painel
+function bindLauncherDrag(host, button) {
+  let drag = null;
+  let suppressClick = false;
+
+  button.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    const current = clampLauncherPos(floatingLauncherPos);
+    drag = {
+      x: event.clientX,
+      y: event.clientY,
+      right: current.right,
+      bottom: current.bottom,
+      moved: false,
+    };
+    try {
+      button.setPointerCapture(event.pointerId);
+    } catch (_) {}
+  });
+
+  button.addEventListener("pointermove", (event) => {
+    if (!drag) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < LAUNCHER_DRAG_THRESHOLD) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      button.classList.add("dragging");
+    }
+    event.preventDefault();
+    // A bolinha é ancorada por right/bottom: mover para a direita diminui "right"
+    const next = applyLauncherPos(host, {
+      right: drag.right - dx,
+      bottom: drag.bottom - dy,
+    });
+    drag.last = next;
+  });
+
+  const finish = (event) => {
+    if (!drag) return;
+    const state = drag;
+    drag = null;
+    try {
+      button.releasePointerCapture(event.pointerId);
+    } catch (_) {}
+    button.classList.remove("dragging");
+    if (state.moved && state.last) {
+      persistLauncherPos(state.last);
+      // O "click" disparado logo após soltar não deve abrir o painel
+      suppressClick = true;
+      setTimeout(() => {
+        suppressClick = false;
+      }, 80);
+    }
+  };
+  button.addEventListener("pointerup", finish);
+  button.addEventListener("pointercancel", finish);
+
+  // Também cobre ativação por teclado (Enter/Espaço)
+  button.addEventListener("click", (event) => {
+    if (suppressClick) {
+      event.preventDefault();
+      suppressClick = false;
+      return;
+    }
+    expandFloatingPanel();
+  });
+
+  // Duplo clique volta a bolinha para o canto padrão
+  button.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    applyLauncherPos(host, LAUNCHER_DEFAULT_POS);
+    persistLauncherPos(LAUNCHER_DEFAULT_POS);
+  });
 }
 
 function minimizeFloatingPanel() {
@@ -592,8 +728,8 @@ function createFloatingPanel(options) {
   const box = document.createElement("div");
   box.className = "box";
   const iframe = document.createElement("iframe");
-  iframe.title = "Mapeador de Formulários";
-  iframe.setAttribute("aria-label", "Mapeador de Formulários");
+  iframe.title = "Validador e Formulário";
+  iframe.setAttribute("aria-label", "Validador e Formulário");
   const shield = document.createElement("div");
   shield.className = "shield";
   const grip = document.createElement("div");
@@ -703,9 +839,10 @@ function startFloatingObserver() {
 }
 
 function initFloatingPersistence() {
-  loadFloatingSettings((enabled, size) => {
+  loadFloatingSettings((enabled, size, launcherPos) => {
     floatingEnabled = enabled;
     floatingSizePref = size;
+    floatingLauncherPos = launcherPos;
     if (enabled) restoreFloatingPanel();
   });
 
@@ -736,6 +873,8 @@ function initFloatingPersistence() {
 
   // Janela do navegador redimensionada: mantém o painel visível e dentro da tela
   window.addEventListener("resize", () => {
+    const launcher = document.getElementById(FLOATING_MINIMIZED_ID);
+    if (launcher) applyLauncherPos(launcher, floatingLauncherPos);
     const host = document.getElementById(FLOATING_PANEL_ID);
     if (!host || host.dataset.minimized === "true") return;
     if (host.dataset.maximized === "true")
@@ -750,6 +889,15 @@ function initFloatingPersistence() {
       if (changes[FLOATING_SIZE_KEY]) {
         floatingSizePref = normalizeStoredSize(
           changes[FLOATING_SIZE_KEY].newValue,
+        );
+      }
+      if (changes[FLOATING_LAUNCHER_POS_KEY]) {
+        floatingLauncherPos = normalizeLauncherPos(
+          changes[FLOATING_LAUNCHER_POS_KEY].newValue,
+        );
+        applyLauncherPos(
+          document.getElementById(FLOATING_MINIMIZED_ID),
+          floatingLauncherPos,
         );
       }
       if (changes[FLOATING_PREF_KEY]) {
