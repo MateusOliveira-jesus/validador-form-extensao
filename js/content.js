@@ -914,7 +914,7 @@ if (window === window.top) initFloatingPersistence();
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request && request.action === "FILL_FORM") {
     try {
-      fillForm(request.data)
+      fillForm(request.data, request.delays)
         .then((result) =>
           sendResponse({ status: result.status, report: result.report }),
         )
@@ -953,7 +953,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 let fillInProgress = false;
-async function fillForm(data) {
+const MAX_FIELD_DELAY_MS = 600000;
+function fieldDelayMs(delays, key) {
+  if (!delays || typeof delays !== "object") return 0;
+  const seconds = Number(delays[key]);
+  if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+  return Math.min(Math.round(seconds * 1000), MAX_FIELD_DELAY_MS);
+}
+const fillSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fillForm(data, delays) {
   if (fillInProgress)
     return { status: "Preenchimento já em andamento", report: { busy: true } };
   if (!data || typeof data !== "object" || Array.isArray(data))
@@ -979,6 +988,11 @@ async function fillForm(data) {
         });
         continue;
       }
+      // Espera definida pelo usuário ANTES de localizar/preencher o campo
+      // (útil quando o campo só aparece ou habilita depois de uma ação anterior).
+      const waitMs = fieldDelayMs(delays, key);
+      if (waitMs > 0) await fillSleep(waitMs);
+      const waitNote = waitMs > 0 ? `aguardou ${waitMs / 1000} s` : "";
       const manual =
         key.startsWith(CSS_KEY_PREFIX) || key.startsWith(JS_KEY_PREFIX);
       const targets = manual
@@ -1022,10 +1036,11 @@ async function fillForm(data) {
           const result = await fillField(field, value);
           if (result === false) throw new Error("O campo recusou o valor");
           report.filled++;
+          const noteText = [result && result.note, waitNote].filter(Boolean).join(" • ");
           report.fields.push({
             field: label,
             result: "preenchido",
-            ...(result && result.note ? { reason: result.note } : {}),
+            ...(noteText ? { reason: noteText } : {}),
           });
         } catch (error) {
           report.failed.push(label);
