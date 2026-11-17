@@ -1,5 +1,35 @@
 # Changelog
 
+## v55.3.0 — variáveis {{ }} na Requisição perguntam na hora
+- Na aba Requisição, `{{variáveis}}` sem valor nos dados (na URL, nos campos, headers, Bearer ou token) agora abrem a **mesma janela de perguntas** do preenchimento — com listas de opções, `| padrao:`, `repetição()`/`lista()` e valores lembrados.
+- Vale para **Enviar**, **Pré-visualizar** e **Copiar cURL**. Cancelar a janela cancela o envio.
+- Em lote e nas repetições automáticas (erro 5xx), as respostas da primeira pergunta são reaproveitadas, sem perguntar de novo.
+
+## v55.2.4 — espera (⏱) agora vale no botão "Preencher"
+- **Corrigido:** ao preencher pelo botão principal (e ao reutilizar um JSON do histórico), as esperas salvas no mapeamento não eram carregadas e o relatório dizia "Nenhuma espera configurada". Agora esses caminhos carregam o ⏱ do mapeamento selecionado, como já faziam a aba Dado e "Subir Novo JSON".
+- Teste de regressão em `tests/espera.test.js`.
+
+## v55.2.3 — esperas não se perdem entre painéis
+- O popup da barra e o painel flutuante agora se sincronizam: quando um salva os perfis, o outro atualiza a cópia em memória. Antes o painel com cópia antiga sobrescrevia as esperas (⏱) salvas pelo outro.
+- O resumo do mapeamento selecionado (aba Início) mostra "⏱ N espera(s)", para você ver na hora se o tempo foi gravado.
+- Ao definir um ⏱, a mensagem informa em qual mapeamento ele foi salvo; se não houver mapeamento carregado, mostra erro em vez de falhar em silêncio.
+
+## v55.2.2 — diagnóstico só ao final e esperas lidas na hora
+- As esperas (⏱) agora são lidas do armazenamento no instante do preenchimento (não de uma cópia antiga em memória do painel).
+- Durante a execução aparece só "Executando… faltam ~X s"; o diagnóstico completo (preenchidos, não encontrados, recusados) surge apenas quando tudo termina.
+- O relatório mostra uma linha de diagnóstico das esperas: quais estavam configuradas, em quais campos foram aplicadas e a duração total. Se nenhuma espera existir, o relatório avisa.
+- O selo de versão do cabeçalho agora lê a versão real do manifest (estava fixo em "v54").
+
+## v55.2.1 — correção da espera (⏱)
+- **Corrigido:** o tempo de espera por campo era apagado ao recarregar o painel (o carregamento dos perfis descartava `fieldDelays`), então o preenchimento ocorria imediatamente. Agora a espera é mantida e o campo só é localizado e preenchido depois do tempo definido.
+
+## v55.2.0 — espera (⏱) antes do campo
+- Cada linha do mapeamento ganhou o botão **⏱**. Clique para adicionar uma espera **antes** daquele campo e digite os segundos (aceita decimais, ex.: `1,5`; máximo 600). Apagar o valor ou clicar de novo no ⏱ remove a espera.
+- Ao preencher, a extensão aguarda esse tempo e só então localiza e preenche/seleciona o campo — útil quando ele aparece ou habilita depois de uma ação anterior.
+- A espera vale para todos os caminhos de preenchimento do mapeamento (JSON, histórico, aba Dado) e fica salva no perfil. Remover o campo do mapeamento remove também a espera.
+- Campos sem valor continuam sendo ignorados sem esperar. O relatório de preenchimento registra "aguardou X s".
+- Novo teste: `tests/espera.test.js`.
+
 ## v55.1.0 — bolinha arrastável
 - **A bolinha flutuante agora pode ser arrastada** para qualquer ponto da tela. Um clique simples continua abrindo o painel; só arrastar (mover mais de 4 px) reposiciona, sem abrir.
 - A posição é lembrada em todas as páginas e abas, e a bolinha é mantida dentro da janela quando ela é redimensionada.

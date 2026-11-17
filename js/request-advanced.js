@@ -60,7 +60,8 @@
     if (button.disabled) throw new Error('Já existe uma requisição em andamento.');
     const before = snapshotResponse();
     delete window.__mapeadorRequestUiError;
-    button.click();
+    window.__mapeadorReqReuseVars = true;
+    try { button.click(); } finally { setTimeout(() => { window.__mapeadorReqReuseVars = false; }, 0); }
     let started = false;
     for (let i = 0; i < 2600; i++) {
       if (button.disabled) started = true;
@@ -338,7 +339,8 @@
     const retries = clamp($('reqAdvancedRetries').value, 0, 5, 0);
     if (!retries) return originalSend.call(this, event);
     for (let i = 0; i <= retries; i++) {
-      await originalSend.call(this, event);
+      window.__mapeadorReqReuseVars = i > 0;
+      try { await originalSend.call(this, event); } finally { window.__mapeadorReqReuseVars = false; }
       const r = snapshotResponse();
       if (i === retries || !r || (r.status > 0 && r.status < 500)) break;
       await sleep(Math.max(300 * (i + 1), rateDelay()));

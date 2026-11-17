@@ -174,3 +174,18 @@ html body.v2 * { scrollbar-width: thin; scrollbar-color: var(--v2-border-strong)
 @media (prefers-reduced-motion: reduce) {
   html body.v2 *, html body.v2 *::before, html body.v2 *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
+
+/* ⏱ Espera antes do campo (mapeamento) */
+.mapping-item .wait-box { display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; }
+html body.v2 #mappingContainer .mapping-item .mapping-mode > .wait-box { flex: 0 0 auto !important; width: auto !important; }
+.mapping-item .btn-wait {
+  border: 0; background: transparent; cursor: pointer; padding: 2px 4px; border-radius: 6px;
+  font-size: 12px; line-height: 1; opacity: .55; filter: grayscale(1); transition: opacity .15s, filter .15s, background .15s;
+}
+.mapping-item .btn-wait:hover { opacity: 1; filter: none; background: rgba(38, 141, 255, .14); }
+.mapping-item .wait-box.active .btn-wait { opacity: 1; filter: none; background: rgba(38, 141, 255, .18); }
+.mapping-item .wait-input {
+  width: 52px; font-size: 11px; padding: 2px 4px; border: 1px solid #dadce0; border-radius: 4px;
+  background: inherit; color: inherit;
+}
+.mapping-item .wait-input[hidden] { display: none; }

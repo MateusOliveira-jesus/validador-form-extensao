@@ -60,6 +60,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const clearMappingBtn = document.getElementById("clearMappingBtn");
 
   const statusDiv = document.getElementById("status");
+  try {
+    const badge = document.querySelector(".badge-version");
+    if (badge) badge.textContent = "v" + chrome.runtime.getManifest().version;
+  } catch (_) {}
 
   // ============================================
   // ELEMENTOS DO HISTÓRICO
@@ -91,6 +95,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let appSettings = { historyLimit: 50, schemaVersion: 5 };
   let pageFields = [];
   let currentMapping = {};
+  // Espera (em segundos) antes de preencher cada campo, por perfil: { campo: segundos }.
+  // Preenchido por resolveMappedData/histórico e consumido por sendFillToTab.
+  let pendingFillDelays = {};
+  let pendingFillProfileId = null;
   let currentProfileData = null;
   let currentProfileId = null;
   let editingFieldId = null;
@@ -106,6 +114,12 @@ document.addEventListener("DOMContentLoaded", () => {
     getCurrentData: (profile) =>
       (profile && profiles[selectedIndex] === profile && currentProfileData) || getLatestProfileData(profile),
     getTestSettings: (profile) => getTestSettings(profile),
+    // v55.3: a aba Requisição pergunta as {{variáveis}} sem valor com a mesma janela do preenchimento.
+    askVariablesFor: (data, known) => new Promise((resolve) => {
+      const variables = collectVariables(data, known);
+      if (!variables.size) return resolve({});
+      askVariables(variables, (values) => resolve(values || {}), { data, known, onCancel: () => resolve(null) });
+    }),
     // v41: a aba Requisição grava as preferências de teste no mesmo perfil que o Início usa.
     saveTestSettings: (profile, { enabled, fields, remember } = {}) => {
       if (!profile) return;
@@ -192,6 +206,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const summary = document.createElement("summary");
     summary.textContent = `Relatório: ${report.filled || 0} preenchido(s), ${(report.notFound || []).length} não encontrado(s), ${(report.failed || []).length} recusado(s)`;
     details.appendChild(summary);
+    if (report.waitSummary) {
+      const w = document.createElement("p");
+      w.className = "fill-wait-summary";
+      w.textContent = report.waitSummary;
+      details.appendChild(w);
+    }
     const list = document.createElement("ul");
     report.fields.forEach(item => {
       const li = document.createElement("li");
@@ -614,6 +634,8 @@ document.addEventListener("DOMContentLoaded", () => {
       data: profile.data && typeof profile.data === "object" ? profile.data : {},
       parentId: profile.parentId || null,
       url: profile.url || "",
+      // Esperas (⏱) por campo: sem isto elas eram apagadas ao recarregar o painel
+      fieldDelays: cleanFieldDelays(profile.fieldDelays),
     };
 
     if (!normalized.testSettings.fields || Object.keys(normalized.testSettings.fields).length === 0) {
@@ -677,9 +699,28 @@ document.addEventListener("DOMContentLoaded", () => {
     return item;
   }
 
+  let lastPersistedProfiles = "";
   function persistAll(callback) {
+    try { lastPersistedProfiles = JSON.stringify(profiles); } catch (_) {}
     chrome.storage.local.set({ profiles, history: historyStore, appSettings, mappingFolders, folderOpenState }, callback);
   }
+
+  // Outra instância do painel (popup da barra x painel flutuante) pode ter salvo perfis.
+  // Sem sincronizar, a cópia antiga em memória sobrescrevia o que foi salvo (ex.: esperas ⏱).
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local" || !changes.profiles || !Array.isArray(changes.profiles.newValue)) return;
+      let incoming = "";
+      try { incoming = JSON.stringify(changes.profiles.newValue); } catch (_) { return; }
+      if (incoming === lastPersistedProfiles) return; // foi esta própria instância
+      lastPersistedProfiles = incoming;
+      const selectedId = selectedIndex !== null && profiles[selectedIndex] ? profiles[selectedIndex].id : null;
+      const next = changes.profiles.newValue.map(normalizeProfile);
+      profiles.splice(0, profiles.length, ...next);
+      if (selectedId) { const idx = profiles.findIndex((p) => p.id === selectedId); selectedIndex = idx >= 0 ? idx : null; }
+      try { renderProfiles(); updateMapperSelect(); } catch (_) {}
+    });
+  } catch (_) {}
 
   function migrateStorage(result) {
     profiles = (result.profiles || []).map(normalizeProfile);
@@ -736,7 +777,19 @@ document.addEventListener("DOMContentLoaded", () => {
     profile.updatedAt = Date.now();
   }
 
+  function cleanFieldDelays(raw) {
+    const out = {};
+    if (!raw || typeof raw !== "object") return out;
+    Object.entries(raw).forEach(([field, seconds]) => {
+      const n = Number(seconds);
+      if (Number.isFinite(n) && n > 0) out[field] = Math.min(n, 600);
+    });
+    return out;
+  }
+
   function resolveMappedData(profile, sourceData) {
+    pendingFillDelays = cleanFieldDelays(profile?.fieldDelays);
+    pendingFillProfileId = profile?.id || null;
     const mapping = profile?.mapping || {};
     const data = sourceData || {};
     const mappedData = {};
@@ -1054,7 +1107,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const mappedCount = Object.keys(p.mapping || {}).length; const profileData = getLatestProfileData(p);
       const testSettings = getTestSettings(p);
       const latestLabel = Object.keys(profileData).length ? `${Object.keys(profileData).length} campo(s) no JSON padrão` : "Nenhum JSON padrão definido";
-      profilePreview.innerHTML = `<div class="selected-profile-title"><span class="selected-profile-name">${escapeHtml(p.name)}</span><span class="selected-profile-state">Selecionado</span></div><div class="selected-profile-meta"><span>${mappedCount} campos mapeados</span><span>•</span><span>${Object.keys(profileData).length} dados padrão</span><span class="profile-test-state">${testSettings.enabled ? "🧪 teste automático" : "✓ dados normais"}</span></div><div class="profile-latest-data" title="${escapeHtml(latestLabel)}"><span>JSON padrão</span><strong>${escapeHtml(latestLabel)}</strong></div><div class="profile-url">🔗 ${escapeHtml(p.url || "URL não registrada")} ${p.url ? `<button type="button" class="profile-preview-go-url" data-url="${escapeHtml(p.url)}">Ir para</button>` : ""}</div>`;
+      profilePreview.innerHTML = `<div class="selected-profile-title"><span class="selected-profile-name">${escapeHtml(p.name)}</span><span class="selected-profile-state">Selecionado</span></div><div class="selected-profile-meta"><span>${mappedCount} campos mapeados</span><span>•</span><span>${Object.keys(profileData).length} dados padrão</span><span>•</span><span title="Esperas (⏱) configuradas neste mapeamento">⏱ ${Object.keys(cleanFieldDelays(p.fieldDelays)).length} espera(s)</span><span class="profile-test-state">${testSettings.enabled ? "🧪 teste automático" : "✓ dados normais"}</span></div><div class="profile-latest-data" title="${escapeHtml(latestLabel)}"><span>JSON padrão</span><strong>${escapeHtml(latestLabel)}</strong></div><div class="profile-url">🔗 ${escapeHtml(p.url || "URL não registrada")} ${p.url ? `<button type="button" class="profile-preview-go-url" data-url="${escapeHtml(p.url)}">Ir para</button>` : ""}</div>`;
       const previewGo = profilePreview.querySelector(".profile-preview-go-url");
       if (previewGo) previewGo.addEventListener("click", () => {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -1222,6 +1275,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const profile = profiles[selectedIndex];
+    // Este caminho monta os dados sozinho (não usa resolveMappedData): sem isto as esperas (⏱) nunca eram carregadas.
+    pendingFillDelays = cleanFieldDelays(profile.fieldDelays);
+    pendingFillProfileId = profile.id || null;
     const mapping = profile.mapping || {};
     const data = getLatestProfileData(profile);
 
@@ -2007,6 +2063,9 @@ document.addEventListener("DOMContentLoaded", () => {
           ? ""
           : 'style="display:none;"';
 
+      const waitSeconds = Number((profile?.fieldDelays || {})[fieldId]) || 0;
+      const waitActive = waitSeconds > 0;
+
       html += `
       <div class="mapping-item${field.manual ? " mapping-item-manual" : ""}" data-field="${escapeHtml(fieldId)}">
         <span class="field-name" title="${escapeHtml(fieldId)}">${escapeHtml(fieldLabel || fieldId || "campo")}</span>
@@ -2041,6 +2100,10 @@ document.addEventListener("DOMContentLoaded", () => {
           <!-- CAMPO DEFAULT - somente leitura; o clique abre o modal com textarea (v10) -->
           <input class="default-input" data-field="${escapeHtml(fieldId)}" type="text" readonly placeholder="Clique para digitar o valor..." title="Clique para abrir o editor de texto" ${showDefaultInput} data-raw="${config.type === "default" ? escapeAttrMultiline(config.value || "") : ""}" value="${config.type === "default" ? escapeHtml(flattenForDisplay(config.value || "")) : ""}" style="width:100px;font-size:10px;padding:2px 4px;border:1px solid #dadce0;border-radius:3px;display:${config.type === "default" ? "inline-block" : "none"};">
           
+          <span class="wait-box${waitActive ? " active" : ""}">
+            <button type="button" class="btn-wait" data-field="${escapeHtml(fieldId)}" title="${waitActive ? "Tempo de espera antes deste campo" : "Adicionar tempo de espera antes deste campo"}" aria-label="Tempo de espera antes do campo ${escapeHtml(fieldLabel)}">⏱</button>
+            <input type="number" class="wait-input" data-field="${escapeHtml(fieldId)}" min="0" max="600" step="0.1" placeholder="seg" title="Segundos de espera antes de preencher/selecionar (0 remove)" value="${waitActive ? waitSeconds : ""}" ${waitActive ? "" : 'hidden'}>
+          </span>
           <button class="btn-edit-value" data-field="${escapeHtml(fieldId)}" title="Editar valor" ${showEditBtn}>✏️</button>
           ${field.manual ? `<button type="button" class="btn-test-manual" data-field="${escapeHtml(fieldId)}" title="Destacar este elemento na página">🎯</button>` : ""}
           <button type="button" class="btn-remove-field" data-field="${escapeHtml(fieldId)}" title="Remover este campo do mapeamento" aria-label="Remover campo ${escapeHtml(fieldLabel || fieldId)}">🗑️</button>
@@ -2747,6 +2810,7 @@ function autoSaveMapping() {
       };
       cancelBtn.onclick = () => {
         closeModal(modalEl);
+        if (ctx.onCancel) { ctx.onCancel(); return; }
         showStatus("ℹ️ Preenchimento cancelado.", "info");
       };
       openModal(modalEl);
@@ -2772,28 +2836,72 @@ function autoSaveMapping() {
     askVariables(variables, (values) => sendFillToTab(applyVariables(data, values, known, true)), { data, known });
   }
 
+  // Lê as esperas (⏱) do perfil direto do armazenamento no instante do envio:
+  // evita usar uma cópia velha da memória (ex.: painel flutuante aberto antes de configurar).
+  function loadFreshDelays(cb) {
+    const local = cleanFieldDelays(pendingFillDelays);
+    if (!pendingFillProfileId) { cb(local); return; }
+    try {
+      chrome.storage.local.get(["profiles"], (res) => {
+        void chrome.runtime.lastError;
+        const list = (res && Array.isArray(res.profiles)) ? res.profiles : [];
+        const stored = list.find((p) => p && p.id === pendingFillProfileId);
+        cb({ ...cleanFieldDelays(stored && stored.fieldDelays), ...local });
+      });
+    } catch (_) { cb(local); }
+  }
+
   function sendFillToTab(data) {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
       if (!tab?.id) { showStatus("❌ Nenhuma aba ativa", "error"); return; }
       renderFillReport(null);
-      mapeadorFrames.sendAll(tab.id, { action: "FILL_FORM", data }, ["js/content.js"]).then((results) => {
-        const ok = results.filter(r => r.response);
-        if (!ok.length) {
-          const msg = (results[0] && results[0].error) || "";
-          showStatus(/Receiving end|Could not establish|Cannot access|chrome:\/\//i.test(msg) || !msg ? "❌ Não foi possível conectar à página. Atualize a aba e tente novamente (páginas internas do Chrome não permitem preenchimento)." : "❌ Falha ao preencher: " + msg, "error");
-          return;
+      loadFreshDelays((allDelays) => {
+        // Só envia as esperas dos campos que realmente serão preenchidos
+        const delays = {};
+        Object.keys(data || {}).forEach((k) => { if (allDelays[k] > 0) delays[k] = allDelays[k]; });
+        const totalWait = Object.values(delays).reduce((a, b) => a + b, 0);
+
+        // Enquanto executa, só mostra andamento; o diagnóstico vem ao terminar tudo.
+        let ticker = 0;
+        const stopTicker = () => { if (ticker) { clearInterval(ticker); ticker = 0; } };
+        const startedAt = Date.now();
+        if (totalWait > 0) {
+          const tick = () => {
+            const left = Math.max(totalWait - (Date.now() - startedAt) / 1000, 0);
+            showStatus(`⏳ Executando… aguardando as esperas (${Object.keys(delays).length} campo(s)) — faltam ~${formatWaitSeconds(Math.ceil(left))}. O diagnóstico aparece ao final.`, "info");
+          };
+          tick();
+          ticker = setInterval(tick, 500);
+        } else {
+          showStatus("⏳ Executando… o diagnóstico aparece ao final.", "info");
         }
-        const r = mapeadorFrames.mergeFillReports(ok, data);
-        if (!r) {
-          const msg = String(ok[0].response.status || "Resposta desconhecida").replace(/^[✅⚠️❌]\s*/, "");
-          showStatus((/^Erro:/i.test(msg) ? "❌ " : "✅ ") + msg, /^Erro:/i.test(msg) ? "error" : "success");
-          return;
-        }
-        renderFillReport(r);
-        const hasProblems = r.failed.length || r.notFound.length;
-        const framesNote = r.frames > 1 ? ` (página + ${r.frames - 1} quadro(s) interno(s))` : "";
-        showStatus(`${hasProblems ? "⚠️" : "✅"} ${r.filled} campo(s) preenchido(s)${framesNote}; ${r.notFound.length} não encontrado(s); ${r.failed.length} recusado(s).`, hasProblems ? "info" : "success");
+
+        mapeadorFrames.sendAll(tab.id, { action: "FILL_FORM", data, delays }, ["js/content.js"]).then((results) => {
+          stopTicker();
+          const ok = results.filter(r => r.response);
+          if (!ok.length) {
+            const msg = (results[0] && results[0].error) || "";
+            showStatus(/Receiving end|Could not establish|Cannot access|chrome:\/\//i.test(msg) || !msg ? "❌ Não foi possível conectar à página. Atualize a aba e tente novamente (páginas internas do Chrome não permitem preenchimento)." : "❌ Falha ao preencher: " + msg, "error");
+            return;
+          }
+          const r = mapeadorFrames.mergeFillReports(ok, data);
+          if (!r) {
+            const msg = String(ok[0].response.status || "Resposta desconhecida").replace(/^[✅⚠️❌]\s*/, "");
+            showStatus((/^Erro:/i.test(msg) ? "❌ " : "✅ ") + msg, /^Erro:/i.test(msg) ? "error" : "success");
+            return;
+          }
+          // Diagnóstico das esperas: mostra se o ⏱ realmente foi aplicado
+          const waited = (r.fields || []).filter((f) => /aguardou/.test(f.reason || "")).map((f) => f.field);
+          const elapsed = Math.round((Date.now() - startedAt) / 100) / 10;
+          r.waitSummary = Object.keys(delays).length
+            ? `⏱ Esperas configuradas: ${Object.entries(delays).map(([k, v]) => `${k} (${formatWaitSeconds(v)})`).join(", ")} • aplicadas em: ${waited.length ? waited.join(", ") : "nenhum campo (verifique se os campos foram encontrados)"} • duração total: ${formatWaitSeconds(elapsed)}`
+            : `⏱ Nenhuma espera configurada para os campos deste mapeamento — tudo foi preenchido em sequência, sem aguardar. Use o botão ⏱ na aba Mapear. • duração total: ${formatWaitSeconds(elapsed)}`;
+          renderFillReport(r);
+          const hasProblems = r.failed.length || r.notFound.length;
+          const framesNote = r.frames > 1 ? ` (página + ${r.frames - 1} quadro(s) interno(s))` : "";
+          showStatus(`${hasProblems ? "⚠️" : "✅"} Concluído: ${r.filled} campo(s) preenchido(s)${framesNote}; ${r.notFound.length} não encontrado(s); ${r.failed.length} recusado(s).`, hasProblems ? "info" : "success");
+        });
       });
     });
   }
@@ -3207,6 +3315,8 @@ function autoSaveMapping() {
       }
 
       const mapping = profile.mapping || {};
+      pendingFillDelays = cleanFieldDelays(profile.fieldDelays);
+      pendingFillProfileId = profile.id || null;
       const mappedData = {};
       let mappedCount = 0;
       let notFoundKeys = [];
@@ -3750,6 +3860,56 @@ function autoSaveMapping() {
     });
   }
 
+  // ⏱ Espera antes do campo: por delegação (a lista é recriada a cada render)
+  function formatWaitSeconds(s) {
+    const n = Math.round(Number(s) * 10) / 10;
+    return `${String(n).replace(".", ",")} s`;
+  }
+  function setFieldDelay(fieldId, seconds) {
+    const profile = profiles.find((p) => p.id === currentProfileId);
+    if (!profile || !fieldId) {
+      showStatus("❌ Não foi possível salvar a espera: nenhum mapeamento carregado. Selecione o mapeamento na aba Mapear e tente de novo.", "error");
+      return 0;
+    }
+    const n = Math.min(Math.max(Number(String(seconds).replace(",", ".")) || 0, 0), 600);
+    profile.fieldDelays = profile.fieldDelays && typeof profile.fieldDelays === "object" ? profile.fieldDelays : {};
+    if (n > 0) profile.fieldDelays[fieldId] = n; else delete profile.fieldDelays[fieldId];
+    profile.updatedAt = Date.now();
+    saveProfiles();
+    lastDelayProfileName = profile.name;
+    return n;
+  }
+  let lastDelayProfileName = "";
+  mappingContainer.addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn-wait");
+    if (!btn) return;
+    const box = btn.closest(".wait-box");
+    const input = box && box.querySelector(".wait-input");
+    if (!input) return;
+    if (input.hidden) {
+      input.hidden = false;
+      if (!input.value) input.value = "1";
+      box.classList.add("active");
+      setFieldDelay(btn.dataset.field, input.value);
+      input.focus(); input.select();
+      showStatus("⏱ Espera adicionada: o preenchimento aguardará esse tempo antes deste campo.", "success");
+    } else {
+      input.value = "";
+      input.hidden = true;
+      box.classList.remove("active");
+      setFieldDelay(btn.dataset.field, 0);
+      showStatus("⏱ Espera removida deste campo.", "info");
+    }
+  });
+  mappingContainer.addEventListener("change", (e) => {
+    const input = e.target.closest(".wait-input");
+    if (!input) return;
+    const n = setFieldDelay(input.dataset.field, input.value);
+    const box = input.closest(".wait-box");
+    if (!n) { input.value = ""; input.hidden = true; if (box) box.classList.remove("active"); showStatus("⏱ Espera removida deste campo.", "info"); }
+    else { input.value = n; showStatus(`⏱ Espera de ${formatWaitSeconds(n)} salva no mapeamento "${lastDelayProfileName}".`, "success"); }
+  });
+
   // Ações das linhas manuais (testar/remover), por delegação — a lista é recriada a cada render
   mappingContainer.addEventListener("click", (e) => {
     const removeBtn = e.target.closest(".btn-remove-field, .btn-remove-manual");
@@ -3760,6 +3920,7 @@ function autoSaveMapping() {
       if (!confirm(`Remover o campo "${fieldId}" deste mapeamento?`)) return;
 
       delete currentMapping[fieldId];
+      if (profile.fieldDelays) delete profile.fieldDelays[fieldId];
       profile.excludedMappingFields = Array.isArray(profile.excludedMappingFields)
         ? profile.excludedMappingFields
         : [];

@@ -89,7 +89,27 @@
     const profile = window.MapeadorApp?.getActiveProfile?.();
     const base = profile ? window.MapeadorApp?.getCurrentData?.(profile) || profile.data || {} : {};
     const person = sourceMode() === "remembered" ? pessoas[Number($("reqRemembered").value)]?.dados : null;
-    return { ...base, ...(person || {}) };
+    return { ...base, ...(person || {}), ...askedValues };
+  }
+  // Respostas da janela de perguntas para {{variáveis}} sem valor nos dados (valem até a próxima pergunta).
+  let askedValues = {};
+  /** Textos da requisição que podem ter {{ }}: URL, valores dos campos, headers, bearer e token. */
+  function templateTexts() {
+    const out = { "URL": $("reqUrl").value, "Bearer": $("reqBearer").value, "Token": $("reqToken").value };
+    try { for (const [k, v] of Object.entries(parseObject("reqHeaders", "Headers"))) out["Header " + k] = String(v); } catch {}
+    for (const f of fields) if (f.enabled && f.key.trim()) out[f.key.trim()] = String(f.value ?? "");
+    return out;
+  }
+  /** Pergunta as {{variáveis}} sem valor. Devolve false se o usuário cancelar. */
+  async function askMissingVars() {
+    if (window.__mapeadorReqReuseVars) return true; // lote/repetição: reaproveita as últimas respostas
+    askedValues = {};
+    const ask = window.MapeadorApp?.askVariablesFor;
+    if (!ask) return true;
+    const answers = await ask(templateTexts(), varValues());
+    if (answers === null) { notify("Envio cancelado.", "info"); return false; }
+    askedValues = answers;
+    return true;
   }
   const resolveVars = (text, values = varValues()) => C.resolveTemplate(text, values, VARS);
 
@@ -1113,6 +1133,7 @@
   // ---------- Pré-visualizar ----------
   async function previewRequest() {
     try {
+      if (!(await askMissingVars())) return;
       const o = options();
       const p = await runInPage("preview", o);
       const lines = [
@@ -1209,6 +1230,7 @@
     const btn = $("reqSend");
     let o, started;
     try {
+      if (!(await askMissingVars())) return;
       const issues = currentIssues();
       const blocking = issues.find((i) => i.level === "error");
       if (blocking) throw Error(blocking.msg);
@@ -1544,8 +1566,9 @@
     notify("Requisição excluída. O rascunho atual foi mantido.", "ok");
   }
 
-  function copyCurl() {
+  async function copyCurl() {
     try {
+      if (!(await askMissingVars())) return;
       const o = options();
       const q = (x) => "'" + String(x).replace(/'/g, "'\\''") + "'";
       const parts = ["curl", "-X", o.method, q(o.url)];
