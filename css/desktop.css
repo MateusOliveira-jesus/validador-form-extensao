@@ -1,0 +1,80 @@
+/* v56 — interface "Área de trabalho" */
+:root {
+  --os-wall: radial-gradient(120% 90% at 15% 0%, oklch(0.72 0.11 230) 0%, oklch(0.5 0.12 250) 55%, oklch(0.33 0.09 260) 100%);
+  --os-folder: oklch(0.86 0.14 85);
+  --os-folder-dark: oklch(0.76 0.15 75);
+  --os-icon-text: oklch(0.99 0 0);
+  --os-icon-shadow: 0 1px 2px oklch(0 0 0 / 0.6);
+  --os-sel: oklch(1 0 0 / 0.18);
+  --os-win-bg: var(--bs-body-bg, oklch(0.99 0 0));
+  --os-title-bg: oklch(0.96 0.01 250);
+  --os-title-fg: oklch(0.25 0.03 260);
+  --os-border: oklch(0.82 0.02 250);
+  --os-bar: oklch(0.2 0.03 260 / 0.82);
+  --os-bar-fg: oklch(0.97 0 0);
+  --os-accent: oklch(0.6 0.15 250);
+  --os-close: oklch(0.6 0.22 27);
+  --os-shadow: 0 18px 40px oklch(0 0 0 / 0.35), 0 2px 6px oklch(0 0 0 / 0.2);
+}
+[data-theme="dark"] {
+  --os-wall: radial-gradient(120% 90% at 15% 0%, oklch(0.4 0.08 250) 0%, oklch(0.26 0.06 260) 60%, oklch(0.17 0.03 265) 100%);
+  --os-title-bg: oklch(0.27 0.02 260);
+  --os-title-fg: oklch(0.95 0 0);
+  --os-border: oklch(0.38 0.02 260);
+}
+html body.v56-os nav.tab-group.v56-hidden-nav, html body.v56-os .tab-group.v56-hidden-nav { display: none !important; }
+.v56-desktop {
+  position: relative; background: var(--os-wall); border-radius: 12px; overflow: hidden;
+  min-height: 520px; height: var(--v56-h, calc(100vh - 92px)); display: flex; flex-direction: column; margin-top: 6px;
+}
+.v56-icons {
+  flex: 1; display: grid; grid-template-columns: repeat(auto-fill, 88px); grid-auto-rows: 96px;
+  gap: 6px; padding: 14px; align-content: start;
+}
+.v56-folder {
+  all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 8px 4px; border-radius: 8px; border: 1px solid transparent; transition: background .15s;
+}
+.v56-folder:hover, .v56-folder:focus-visible { background: var(--os-sel); border-color: oklch(1 0 0 / 0.3); }
+.v56-folder.is-current .v56-folder-name { background: var(--os-accent); }
+.v56-folder-art { position: relative; width: 54px; height: 44px; transition: transform .15s; }
+.v56-folder:hover .v56-folder-art { transform: translateY(-2px); }
+.v56-folder-back { position: absolute; inset: 0 0 4px 0; background: var(--os-folder-dark); border-radius: 4px 6px 4px 4px;
+  clip-path: polygon(0 0, 40% 0, 48% 14%, 100% 14%, 100% 100%, 0 100%); }
+.v56-folder-front { position: absolute; left: 0; right: 0; bottom: 0; height: 78%; background: linear-gradient(180deg, var(--os-folder), var(--os-folder-dark));
+  border-radius: 4px; box-shadow: 0 2px 4px oklch(0 0 0 / 0.25); }
+.v56-folder-glyph { position: absolute; left: 0; right: 0; bottom: 6px; display: flex; justify-content: center; }
+.v56-folder-glyph svg { width: 18px; height: 18px; fill: none; stroke: oklch(0.45 0.1 70); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.v56-folder-name { color: var(--os-icon-text); text-shadow: var(--os-icon-shadow); font-size: 12px; text-align: center; padding: 1px 5px; border-radius: 3px; line-height: 1.25; }
+
+.v56-window {
+  position: absolute; left: 10px; right: 10px; top: 10px; bottom: 50px; display: flex; flex-direction: column;
+  background: var(--os-win-bg); border: 1px solid var(--os-border); border-radius: 10px; box-shadow: var(--os-shadow);
+  overflow: hidden; animation: v56-open .16s ease-out; z-index: 5;
+}
+.v56-window[hidden] { display: none; }
+.v56-window.is-max { left: 0; right: 0; top: 0; bottom: 42px; border-radius: 0; }
+@keyframes v56-open { from { opacity: 0; transform: scale(.97) translateY(8px); } to { opacity: 1; transform: none; } }
+.v56-titlebar { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; background: var(--os-title-bg);
+  color: var(--os-title-fg); border-bottom: 1px solid var(--os-border); user-select: none; }
+.v56-win-ico svg, .v56-task-ico svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.v56-win-titles { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
+.v56-win-title { font-weight: 600; font-size: 13px; }
+.v56-win-path { font-size: 11px; opacity: .6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.v56-win-ctrls { display: flex; gap: 2px; }
+.v56-win-ctrls button { all: unset; cursor: pointer; width: 34px; height: 26px; display: grid; place-items: center; border-radius: 5px; font-size: 14px; color: inherit; }
+.v56-win-ctrls button:hover { background: oklch(0.5 0 0 / 0.15); }
+.v56-win-ctrls .v56-close:hover { background: var(--os-close); color: oklch(1 0 0); }
+.v56-win-body { flex: 1; overflow: auto; padding: 12px; }
+
+.v56-taskbar { position: relative; z-index: 6; height: 42px; display: flex; align-items: center; gap: 6px; padding: 0 8px;
+  background: var(--os-bar); color: var(--os-bar-fg); backdrop-filter: blur(10px); }
+.v56-start { all: unset; cursor: pointer; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; }
+.v56-start:hover { background: oklch(1 0 0 / 0.14); }
+.v56-start img { width: 20px; height: 20px; }
+.v56-tasks { flex: 1; display: flex; gap: 4px; }
+.v56-task { all: unset; cursor: pointer; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 6px;
+  font-size: 12px; background: oklch(1 0 0 / 0.08); border-bottom: 2px solid transparent; }
+.v56-task:hover { background: oklch(1 0 0 / 0.16); }
+.v56-task.is-active { border-bottom-color: var(--os-accent); background: oklch(1 0 0 / 0.16); }
+.v56-clock { font-size: 12px; font-variant-numeric: tabular-nums; padding: 0 6px; }

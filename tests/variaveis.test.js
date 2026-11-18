@@ -206,4 +206,19 @@ assert.strictEqual(du("dia_util(d)", "25/01/2027"), "26/01/2027");
 V.setExtraHolidays("");
 assert.strictEqual(du("dia_util_antes(d)", "03/04/2026"), "02/04/2026");
 console.log(fail ? `${fail} falha(s)` : `todos os ${cases.length - 1 + rcases.length + lcases.length} casos ok`);
+// v56 — novas variáveis
+{
+  const V2 = require("../js/variaveis.js");
+  const a = require("assert");
+  for (let i = 0; i < 50; i++) { a.ok(V2.cpfOk(V2.BUILTIN.cpf_aleatorio.fn())); a.ok(V2.cnpjOk(V2.BUILTIN.cnpj_aleatorio.fn())); }
+  a.match(V2.BUILTIN.email_aleatorio.fn(), /^teste\.\d{4}@exemplo\.com$/);
+  const vv = { nome: "José Silva", cod: "42", vazio: "", alt: "B", n: "5" };
+  a.strictEqual(V2.resolve('substituir(nome, "Silva", "Souza")', vv), "José Souza");
+  a.strictEqual(V2.resolve("cod | zeros:5", vv), "00042");
+  a.strictEqual(V2.resolve("primeiro_preenchido(vazio, alt)", vv), "B");
+  a.strictEqual(V2.resolve('se(entre(n, 1, 10), "ok", "fora")', vv), "ok");
+  a.strictEqual(V2.resolve(" ' ABC@X.COM ' | email ".replace(/'/g, '"'), vv), "abc@x.com");
+  a.match(V2.resolve("email_de(nome)", vv), /^jose\.silva\.\d{4}@exemplo\.com$/);
+  console.log("v56: novas variáveis ok");
+}
 process.exit(fail ? 1 : 0);

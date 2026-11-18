@@ -187,6 +187,15 @@
 
   // ---------- variáveis automáticas ----------
   const nowHM = () => { const d = new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+  // v56 — geradores de dados de teste (dígitos verificadores válidos)
+  const rnd = (n) => Math.floor(Math.random() * n);
+  function genCpf() { const d = Array.from({ length: 9 }, () => rnd(10)); if (/^(\d)\1+$/.test(d.join(""))) d[0] = (d[0] + 1) % 10;
+    for (let t = 9; t < 11; t++) { let s = 0; for (let i = 0; i < t; i++) s += d[i] * (t + 1 - i); d.push(((s * 10) % 11) % 10); } return d.join(""); }
+  function genCnpj() { const d = Array.from({ length: 8 }, () => rnd(10)).concat([0, 0, 0, 1]);
+    for (const n of [12, 13]) { let s = 0, pos = n - 7; for (let i = 0; i < n; i++) { s += d[i] * pos--; if (pos < 2) pos = 9; } const r = s % 11; d.push(r < 2 ? 0 : 11 - r); } return d.join(""); }
+  const genCelular = () => "11" + "9" + String(10000000 + rnd(90000000));
+  const genEmail = (base) => (String(base || "teste").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "") || "teste") + "." + (1000 + rnd(9000)) + "@exemplo.com";
+
   const BUILTIN = {
     hoje: { label: "Data de hoje", fn: () => fmtDateBR(today()) },
     ontem: { label: "Data de ontem", fn: () => fmtDateBR(today() - 1) },
@@ -206,6 +215,11 @@
     proximo_dia_util: { label: "Próximo dia útil", fn: () => fmtDateBR(addBusinessDays(today(), 1)) },
     timestamp: { label: "Data/hora em milissegundos", fn: () => String(Date.now()) },
     numero: { label: "Nº aleatório (6 dígitos)", fn: () => String(Math.floor(100000 + Math.random() * 900000)) },
+    cpf_aleatorio: { label: "CPF válido aleatório", fn: () => genCpf() },
+    cnpj_aleatorio: { label: "CNPJ válido aleatório", fn: () => genCnpj() },
+    celular_aleatorio: { label: "Celular aleatório", fn: () => genCelular() },
+    email_aleatorio: { label: "E-mail de teste", fn: () => genEmail() },
+    semana_ano: { label: "Nº da semana no ano", fn: () => { const t = today(); const [y] = ymd(t); const jan1 = fromYmd(y, 1, 1); return String(Math.floor((t - jan1 + ((ymd(jan1)[3] + 6) % 7)) / 7) + 1); } },
     uuid: { label: "Código único", fn: () => (root.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now())) },
   };
 
@@ -263,7 +277,14 @@
     // textos
     tamanho: (a) => N(String(a.v).length),
     juntar: (...a) => S(a.map((x) => toText(x)).join("")),
+    // v56
+    substituir: (a, de, para) => S(toText(a).split(toText(de || S(""))).join(para ? toText(para) : "")),
+    email_de: (a) => S(genEmail(toText(a))),
+    cpf_novo: () => S(genCpf()), cnpj_novo: () => S(genCnpj()),
+    entre: (x, a, b) => { const v = num(x); return N(v >= num(a) && v <= num(b) ? 1 : 0); },
+    primeiro_preenchido: (...a) => a.find((x) => toText(x).trim() !== "") || S(""),
   };
+  FUNCS.coalesce = FUNCS.primeiro_preenchido;
   FUNCS["média"] = FUNCS.media; FUNCS["raíz"] = FUNCS.raiz;
 
   // ---------- tokenizador ----------
@@ -463,6 +484,11 @@
     sim_nao: (x) => { const t = asText(x).trim(); const v = x.k === "s" ? truthy(x) : isFinite(x.v) && x.v !== 0; return S(t === "" ? "" : v ? "Sim" : "Não"); },
     contar: (x) => S(String(asText(x).length)),
     absoluto: (x) => S(fmtNumber(Math.abs(asNum(x)))),
+    // v56
+    pis: (x) => S(mask(asText(x), "###.#####.##-#")),
+    placa: (x) => { const t = asText(x).toUpperCase().replace(/[^A-Z0-9]/g, ""); return S(/^[A-Z]{3}\d{4}$/.test(t) ? t.slice(0, 3) + "-" + t.slice(3) : t); },
+    zeros: (x, a) => S(asText(x).padStart(Math.max(0, Math.min(50, +a || 0)), "0")),
+    email: (x) => S(asText(x).trim().toLowerCase().replace(/\s+/g, "")),
   };
   const ALIASES = { hora: "h", horas: "h", upper: "maiusculas", "maiúsculas": "maiusculas", lower: "minusculas", "minúsculas": "minusculas", "título": "titulo", minutos: "min", "porcentagem": "pct", "%": "pct", "r$": "moeda", default: "padrao", "padrão": "padrao", digitos: "numeros", "dígitos": "numeros", fone: "telefone", celular: "telefone", "números": "numeros", maiuscula: "maiusculas", "maiúscula": "maiusculas", minuscula: "minusculas", "minúscula": "minusculas", uppercase: "maiusculas", lowercase: "minusculas", trim: "aparar", currency: "moeda", somente_numeros: "numeros", apenas_numeros: "numeros", so_numeros: "numeros", valor_extenso: "extenso_reais", reais_extenso: "extenso_reais", nome_proprio: "titulo", primeironome: "primeiro_nome", ultimonome: "ultimo_nome", data_br: "data", data_iso: "iso", dd_mm_aa: "data_curta", sem_espaco: "sem_espacos", sim_ou_nao: "sim_nao" };
   // Modos que mudam como os valores das variáveis são lidos dentro da conta

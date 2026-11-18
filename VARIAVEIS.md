@@ -142,3 +142,9 @@ Feriados nacionais (01/01, 21/04, 01/05, 07/09, 12/10, 02/11, 15/11, 20/11, 25/1
 - **Consultar:** `{{eh_dia_util(data)}}` e `{{eh_feriado(data)}}` devolvem 1 ou 0.
 - Sem conta (`{{data | dia_util}}`) o padrão é avançar. O sentido vem do último `+`/`-` ou do sinal em `meses`/`anos`.
 
+
+
+## v56 — novidades
+- Automáticas: `{{cpf_aleatorio}}`, `{{cnpj_aleatorio}}` (com dígitos válidos), `{{celular_aleatorio}}`, `{{email_aleatorio}}`, `{{semana_ano}}`.
+- Funções: `{{substituir(nome, "Silva", "Souza")}}` · `{{email_de(nome)}}` → jose.silva.1234@exemplo.com · `{{cpf_novo()}}` · `{{se(entre(idade, 18, 60), "Sim", "Não")}}` · `{{primeiro_preenchido(celular, telefone)}}`.
+- Filtros: `{{codigo | zeros:6}}` → 000042 · `{{email | email}}` (minúsculas, sem espaços) · `{{pis | pis}}` · `{{placa | placa}}` → ABC-1234.

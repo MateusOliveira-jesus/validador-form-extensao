@@ -1,5 +1,13 @@
 # Changelog
 
+## v56.1.0
+- Novo botão no topo para escolher a interface: área de trabalho (pastas) ou clássica (abas). A escolha fica salva.
+
+## v56.0.0
+- Nova interface "área de trabalho": as abas viraram pastas; abrir uma pasta abre uma janela com minimizar, maximizar (duplo clique no título) e fechar, mais barra de tarefas com relógio.
+- A extensão lembra a última pasta aberta e reabre a janela no mesmo estado (aberta, minimizada ou maximizada).
+- Variáveis novas: `cpf_aleatorio`, `cnpj_aleatorio`, `celular_aleatorio`, `email_aleatorio`, `semana_ano`; funções `substituir`, `email_de`, `cpf_novo`, `cnpj_novo`, `entre`, `primeiro_preenchido`; filtros `zeros:N`, `email`, `pis`, `placa`.
+
 ## v55.4.0 — padronização de rótulos e acessibilidade
 - **Rótulos padronizados:** frase com inicial maiúscula só na primeira palavra ("Salvar mapeamento", "Limpar histórico", "Selecionar todos", "Preencher com teste"); removido o "❌" dos botões Cancelar; "+" unificado como "＋".
 - **Botões que dizem o que fazem:** "Limpar" virou "Limpar lista" (pessoas geradas) e "Limpar relatório"; "Auto Mapear" → "Mapear automaticamente"; "Gerar Pessoa 4Devs" → "Gerar pessoa (4Devs)".
