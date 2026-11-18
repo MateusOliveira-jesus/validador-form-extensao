@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Validador e Formulário",
-  "version": "55.3.0",
+  "version": "55.4.0",
   "description": "Mapeia e preenche formulários com JSON, valida e testa requisições e faz backup completo em um único arquivo.",
   "permissions": [
     "storage",

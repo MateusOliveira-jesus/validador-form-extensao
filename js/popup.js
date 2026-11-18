@@ -485,10 +485,10 @@ document.addEventListener("DOMContentLoaded", () => {
         document
           .querySelectorAll(".test-field-checkbox")
           .forEach((cb) => (cb.checked = true));
-        this.textContent = "Selecionar Todos ✅";
+        this.textContent = "Selecionar todos ✅";
       };
       if (allChecked) {
-        selectAllBtn.textContent = "Selecionar Todos ✅";
+        selectAllBtn.textContent = "Selecionar todos ✅";
       }
     }
 
@@ -498,7 +498,7 @@ document.addEventListener("DOMContentLoaded", () => {
           .querySelectorAll(".test-field-checkbox")
           .forEach((cb) => (cb.checked = false));
         const selectAll = document.getElementById("selectAllTestFields");
-        if (selectAll) selectAll.textContent = "Selecionar Todos";
+        if (selectAll) selectAll.textContent = "Selecionar todos";
       };
     }
 
@@ -3842,7 +3842,7 @@ function autoSaveMapping() {
     currentMapping[key] = { type: "default", value: "" };
     renderMapping();
     manualSelectorInput.value = "";
-    setManualHint("✅ Campo adicionado. Defina o valor abaixo e clique em Salvar Mapeamento.", "ok");
+    setManualHint("✅ Campo adicionado. Defina o valor abaixo e clique em Salvar mapeamento.", "ok");
 
     const row = Array.from(mappingContainer.querySelectorAll(".mapping-item-manual"))
       .find((el) => el.dataset.field === key);

@@ -538,7 +538,7 @@
   }
   function updateTestCount() {
     const total = Object.keys(testCtx.data).length;
-    $("reqTestConfirm").textContent = testCtx.sel.size ? `✅ Preencher com Teste (${testCtx.sel.size}/${total})` : "✅ Preencher sem teste";
+    $("reqTestConfirm").textContent = testCtx.sel.size ? `✅ Preencher com teste (${testCtx.sel.size}/${total})` : "✅ Preencher sem teste";
   }
 
   function openTestModal(profile, data) {

@@ -1,5 +1,12 @@
 # Changelog
 
+## v55.4.0 — padronização de rótulos e acessibilidade
+- **Rótulos padronizados:** frase com inicial maiúscula só na primeira palavra ("Salvar mapeamento", "Limpar histórico", "Selecionar todos", "Preencher com teste"); removido o "❌" dos botões Cancelar; "+" unificado como "＋".
+- **Botões que dizem o que fazem:** "Limpar" virou "Limpar lista" (pessoas geradas) e "Limpar relatório"; "Auto Mapear" → "Mapear automaticamente"; "Gerar Pessoa 4Devs" → "Gerar pessoa (4Devs)".
+- **type="button"** em todos os botões (43 não tinham), evitando envio acidental se algum dia ficarem dentro de um `<form>`.
+- **Acessibilidade:** `aria-label` nos botões só-ícone (tema, fechar, excluir dado salvo) e em 41 campos que não tinham rótulo para leitores de tela.
+- Nenhuma lógica, dado, chave de armazenamento ou formato de backup foi alterado.
+
 ## v55.3.0 — variáveis {{ }} na Requisição perguntam na hora
 - Na aba Requisição, `{{variáveis}}` sem valor nos dados (na URL, nos campos, headers, Bearer ou token) agora abrem a **mesma janela de perguntas** do preenchimento — com listas de opções, `| padrao:`, `repetição()`/`lista()` e valores lembrados.
 - Vale para **Enviar**, **Pré-visualizar** e **Copiar cURL**. Cancelar a janela cancela o envio.
